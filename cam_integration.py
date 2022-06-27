@@ -3,6 +3,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 
@@ -10,9 +11,12 @@ import time
 
 
 #set your username and password here, as well as the room name to be used
-USERNAME = "username" 
+USERNAME = "username"
 PASSWORD = "password"
 ROOMNAME = "test-room"
+
+#set camera name
+CAMERA_NAME = "HD Camera (13d3:56db)"
 
 driver = None
 
@@ -60,6 +64,21 @@ def fill_input_xpath(input_xpath, input):
         print(f"Input with XPath: {input_xpath} not found! Aborting.")
         driver.quit()
         exit(-1)
+
+
+def select_option(select_xpath, option_text):
+    """Selects option given by option_text in dropdown menu given by its xpath"""
+    wait_for((By.XPATH, select_xpath))
+    select = Select(driver.find_element(by=By.XPATH, value=select_xpath))
+    select.select_by_visible_text(option_text)
+
+
+def select_last_option(select_xpath):
+    """Selects last option in dropdown menu given by its xpath"""
+    wait_for((By.XPATH, select_xpath))
+    select = Select(driver.find_element(by=By.XPATH, value=select_xpath))
+    num_options = len(select.options)
+    select.select_by_index(num_options - 1)
 
 
 if __name__ == "__main__":
@@ -127,6 +146,22 @@ if __name__ == "__main__":
     #go into listen only mode
     listenOnly_xpath ='//*[@class="icon--2q1XXw icon-bbb-listen"]'
     click_button_xpath(listenOnly_xpath)
+
+
+    shareCamera_xpath = '//*[@id="tippy-21"]/span[1]'
+    click_button_xpath(shareCamera_xpath)
+
+    selectCamera_xpath = '//*[@id="setCam"]'
+    select_option(selectCamera_xpath, CAMERA_NAME)
+
+    selectQuality_xpath = '//*[@id="setQuality"]'
+    select_last_option(selectQuality_xpath)
+    time.sleep(1)
+
+    startSharing_xPath = '//*[@aria-label="Start sharing"]'
+    click_button_xpath(startSharing_xPath)
+
+
 
     time.sleep(20)
 
