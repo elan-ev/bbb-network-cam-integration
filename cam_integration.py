@@ -16,7 +16,7 @@ PASSWORD = "password"
 ROOMNAME = "test-room"
 
 #set camera name
-CAMERA_NAME = "HD Camera (13d3:56db)"
+CAMERA_NAME = "Virtual Camera"
 
 driver = None
 
@@ -120,6 +120,9 @@ if __name__ == "__main__":
         #click on the room to select it
         selectExistingRoom_xpath = f"//*[contains(text(),'{ROOMNAME}')]"
         click_button_xpath(selectExistingRoom_xpath)
+
+        #give the browser time to notice the change
+        time.sleep(1)
         
         #join/start the meeting
         start_xpath = '//*[@class="btn btn-primary btn-block start-button float-right"]'
@@ -147,12 +150,16 @@ if __name__ == "__main__":
     listenOnly_xpath ='//*[@class="icon--2q1XXw icon-bbb-listen"]'
     click_button_xpath(listenOnly_xpath)
 
+    time.sleep(1)
 
     shareCamera_xpath = '//*[@id="tippy-21"]/span[1]'
     click_button_xpath(shareCamera_xpath)
 
+
     selectCamera_xpath = '//*[@id="setCam"]'
     select_option(selectCamera_xpath, CAMERA_NAME)
+
+    time.sleep(1)
 
     selectQuality_xpath = '//*[@id="setQuality"]'
     select_last_option(selectQuality_xpath)
