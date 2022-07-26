@@ -14,6 +14,7 @@ import time
 USERNAME = "username"
 PASSWORD = "password"
 ROOMNAME = "test-room"
+HEADLESS = False
 
 #set camera name
 CAMERA_NAME = "Virtual Camera"
@@ -47,7 +48,8 @@ def click_button_xpath(button_xpath):
     try:
         #wait for button to be clickable and the cllick it
         wait_for((By.XPATH, button_xpath))
-        driver.find_element(by=By.XPATH, value=button_xpath).click()
+        element = driver.find_element(by=By.XPATH, value=button_xpath)
+        driver.execute_script("arguments[0].click();", element)
     except NoSuchElementException:
         print(f"Button with XPath: {button_xpath} not found! Aborting.")
         driver.quit()
@@ -85,7 +87,9 @@ if __name__ == "__main__":
     #get chrome options and add argument for granting camera permission and window maximization
     options = webdriver.ChromeOptions()
     options.add_argument("--use-fake-ui-for-media-stream")
-    options.add_argument("--start-maximized");
+    options.add_argument("--start-maximized")
+    if HEADLESS:
+        options.add_argument("--headless")
     
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
