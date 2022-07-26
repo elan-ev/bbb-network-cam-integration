@@ -7,14 +7,9 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 
+import sys
 import time
 
-
-#set your username and password here, as well as the room name to be used
-USERNAME = "username"
-PASSWORD = "password"
-ROOMNAME = "test-room"
-HEADLESS = False
 
 #set camera name
 CAMERA_NAME = "Virtual Camera"
@@ -84,6 +79,12 @@ def select_last_option(select_xpath):
 
 
 if __name__ == "__main__":
+
+    USERNAME = sys.argv[1]
+    PASSWORD = sys.argv[2]
+    ROOMNAME = sys.argv[3]
+    HEADLESS = (sys.argv[4].lower() == "true")
+
     #get chrome options and add argument for granting camera permission and window maximization
     options = webdriver.ChromeOptions()
     options.add_argument("--use-fake-ui-for-media-stream")
