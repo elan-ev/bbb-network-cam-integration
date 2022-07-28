@@ -1,7 +1,7 @@
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.firefox import GeckoDriverManager
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
@@ -86,13 +86,15 @@ if __name__ == "__main__":
     HEADLESS = (sys.argv[4].lower() == "true")
 
     #get chrome options and add argument for granting camera permission and window maximization
-    options = webdriver.ChromeOptions()
+    options = webdriver.FirefoxOptions()
     options.add_argument("--use-fake-ui-for-media-stream")
     options.add_argument("--start-maximized")
     if HEADLESS:
         options.add_argument("--headless")
     
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    options.set_preference("media.navigator.permission.disabled", True)
+    
+    driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
 
     #go to initial website 
     driver.get("https://bbb.elan-ev.de/b")
@@ -113,6 +115,8 @@ if __name__ == "__main__":
     #confirm login
     confirmSignIn_xpath = '//*[@value="Sign in"]'
     click_button_xpath(confirmSignIn_xpath)
+
+    time.sleep(1)
 
     #if url didnt change, login was unsuccessful
     if(driver.current_url == login_url):
@@ -175,6 +179,6 @@ if __name__ == "__main__":
 
 
 
-    time.sleep(20)
+    time.sleep(120)
 
     driver.quit()
