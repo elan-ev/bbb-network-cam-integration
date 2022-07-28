@@ -13,7 +13,7 @@ import time
 
 #set camera name
 CAMERA_NAME = "Virtual Camera"
-
+CHECK_AUDIO_DEVICES = False
 driver = None
 
 
@@ -154,17 +154,37 @@ if __name__ == "__main__":
         click_button_xpath(confirmCreation_xpath)
 
 
+    # #go into listen only mode
+    # listenOnly_xpath ='//*[@class="icon--2q1XXw icon-bbb-listen"]'
+    # click_button_xpath(listenOnly_xpath)
 
-    #go into listen only mode
-    listenOnly_xpath ='//*[@class="icon--2q1XXw icon-bbb-listen"]'
-    click_button_xpath(listenOnly_xpath)
+    #activate speakers
+    microphone_xpath = '//*[@aria-label="Microphone"]'
+    click_button_xpath(microphone_xpath)
 
-    time.sleep(1)
 
-    shareCamera_xpath = '//*[@id="tippy-21"]/span[1]'
+    time.sleep(3)
+    
+    if CHECK_AUDIO_DEVICES:
+        #expand list for changing audio devices
+        changeAudioDevice_xpath = '//*[@aria-label="Change audio device"]'
+        click_button_xpath(changeAudioDevice_xpath)
+
+        time.sleep(3)
+
+        #take screenshot to see, whether devices are listed. In headless mode in firefox,
+        #devices are not displayed. In normal mode or in chrome, they are.
+        driver.save_screenshot("./Screenshots/microphoneList.png")
+        driver.quit()
+        exit(0)
+
+    shareCamera_xpath = '//*[@aria-label="Share webcam"]'
     click_button_xpath(shareCamera_xpath)
 
+    time.sleep(3)
 
+    #crashes here, if headless and microphone active
+    driver.save_screenshot("./Screenshots/beforeSetCam.png")
     selectCamera_xpath = '//*[@id="setCam"]'
     select_option(selectCamera_xpath, CAMERA_NAME)
 
@@ -178,7 +198,6 @@ if __name__ == "__main__":
     click_button_xpath(startSharing_xPath)
 
 
-
-    time.sleep(120)
+    time.sleep(10)
 
     driver.quit()
