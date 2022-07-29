@@ -1,7 +1,7 @@
 from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from webdriver_manager.firefox import GeckoDriverManager
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
@@ -86,15 +86,15 @@ if __name__ == "__main__":
     HEADLESS = (sys.argv[4].lower() == "true")
 
     #get chrome options and add argument for granting camera permission and window maximization
-    options = webdriver.FirefoxOptions()
+    options = webdriver.ChromeOptions()
     options.add_argument("--use-fake-ui-for-media-stream")
     options.add_argument("--start-maximized")
     if HEADLESS:
         options.add_argument("--headless")
     
-    options.set_preference("media.navigator.permission.disabled", True)
+    # options.set_preference("media.navigator.permission.disabled", True)
     
-    driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
     #go to initial website 
     driver.get("https://bbb.elan-ev.de/b")
