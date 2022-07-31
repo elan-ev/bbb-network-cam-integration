@@ -11,7 +11,8 @@ HEADLESS="false"
 #declare properties for created virtual camera
 VC_VIDEO_DEVICE_NR=10
 VC_VIDEO_DEVICE="/dev/video$VC_VIDEO_DEVICE_NR"
-VC_CAMERA_NAME="\"Virtual Camera\""
+VC_CAMERA_NAME="Virtual Camera"
+
 
 echo -n "Password for $USERNAME:" 
 read -s PASSWORD
@@ -19,7 +20,7 @@ echo
 
 #always remove v4l2loopback module from kernel before initializing it again
 sudo modprobe -r v4l2loopback
-sudo modprobe v4l2loopback video_nr=$VC_VIDEO_DEVICE_NR card_label=$VC_CAMERA_NAME exclusive_caps=1
+sudo modprobe v4l2loopback video_nr=$VC_VIDEO_DEVICE_NR card_label="$VC_CAMERA_NAME" exclusive_caps=1
 sleep 1
 
 
@@ -40,7 +41,7 @@ done
 
 #get script directory and execute python script for connecting to the meeting
 SCRIPT_DIR="$(dirname "$0")"
-python3 $SCRIPT_DIR/cam_integration.py $USERNAME $PASSWORD $ROOMNAME $HEADLESS
+python3 $SCRIPT_DIR/cam_integration.py $USERNAME $PASSWORD $ROOMNAME $HEADLESS "$VC_CAMERA_NAME"
 
 
 #kill ffmpeg 
