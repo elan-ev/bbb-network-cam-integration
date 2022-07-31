@@ -12,7 +12,7 @@ import time
 
 
 #set camera name
-CAMERA_NAME = "Virtual Camera"
+CAMERA_NAME = None
 CHECK_AUDIO_DEVICES = False
 driver = None
 
@@ -84,6 +84,10 @@ if __name__ == "__main__":
     PASSWORD = sys.argv[2]
     ROOMNAME = sys.argv[3]
     HEADLESS = (sys.argv[4].lower() == "true")
+    CAMERA_NAME = sys.argv[5]
+
+    print(CAMERA_NAME)
+    time.sleep(5)
 
     #get chrome options and add argument for granting camera permission and window maximization
     options = webdriver.ChromeOptions()
@@ -97,12 +101,8 @@ if __name__ == "__main__":
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
     #go to initial website 
-    driver.get("https://bbb.elan-ev.de/b")
+    driver.get("https://bbb.elan-ev.de/b/signin")
 
-    #click the "Sign In" button
-    signIn_xpath = "/html/body/div[1]/div/div/div/a"
-    click_button_xpath(signIn_xpath)
-    
     #fill the username and password fields
     username_xpath = '//*[@id="session_username"]'
     password_xpath = '//*[@id="session_password"]'
@@ -150,7 +150,7 @@ if __name__ == "__main__":
         click_button_xpath(automaticJoin_xpath)
 
         #confirm room creation
-        confirmCreation_xpath = '//*[@id="createRoomModal"]/div/div/div/div[1]/form/div[4]/input[1]'
+        confirmCreation_xpath = '//*[@value="Create Room"]'
         click_button_xpath(confirmCreation_xpath)
 
 
