@@ -3,9 +3,10 @@
 #set -x #for debugging
 
 #example rtsp stream from https://www.wowza.com/developer/rtsp-stream-test
-RTSP_STREAM="rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4"
-USERNAME="schreiber"
-ROOMNAME="test-room"
+RTSP_STREAM="rtsp://rtsp.stream/pattern"
+# RTSP_STREAM="rtsp://camera-42-209.virtuos.uos.de/mediainput/h264/stream_1"
+
+ROOM_URL="https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
 HEADLESS="false"
 
 #declare properties for created virtual camera
@@ -13,10 +14,6 @@ VC_VIDEO_DEVICE_NR=10
 VC_VIDEO_DEVICE="/dev/video$VC_VIDEO_DEVICE_NR"
 VC_CAMERA_NAME="Virtual Camera"
 
-
-echo -n "Password for $USERNAME:" 
-read -s PASSWORD
-echo
 
 #always remove v4l2loopback module from kernel before initializing it again
 sudo modprobe -r v4l2loopback
@@ -41,7 +38,7 @@ done
 
 #get script directory and execute python script for connecting to the meeting
 SCRIPT_DIR="$(dirname "$0")"
-python3 $SCRIPT_DIR/cam_integration.py $USERNAME $PASSWORD $ROOMNAME $HEADLESS "$VC_CAMERA_NAME"
+python3 $SCRIPT_DIR/cam_integration.py $ROOM_URL $HEADLESS "$VC_CAMERA_NAME"
 
 
 #kill ffmpeg 
