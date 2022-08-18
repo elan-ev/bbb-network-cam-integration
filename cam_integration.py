@@ -24,20 +24,6 @@ def wait_for(element, timeout=10):
     WebDriverWait(driver, timeout).until(expected_conditions.element_to_be_clickable(element))
 
 
-def room_exists(roomname):
-    """Checks, whether the BBB room with the given name exists."""
-    
-    roomname_xpath = f"//*[contains(text(),'{roomname}')]"
-    
-    try:
-        driver.find_element(by=By.XPATH, value=roomname_xpath)
-    except NoSuchElementException: #room not found
-        return False
-
-    return True
-
-
-
 def click_button_xpath(button_xpath):
     """Clicks button given by the xpath of the button."""
     try:
@@ -80,11 +66,9 @@ def select_last_option(select_xpath):
 
 if __name__ == "__main__":
 
-    USERNAME = sys.argv[1]
-    PASSWORD = sys.argv[2]
-    ROOMNAME = sys.argv[3]
-    HEADLESS = (sys.argv[4].lower() == "true")
-    CAMERA_NAME = sys.argv[5]
+    ROOM_URL = sys.argv[1]
+    HEADLESS = (sys.argv[2].lower() == "true")
+    CAMERA_NAME = sys.argv[3]
 
     print(CAMERA_NAME)
     time.sleep(5)
@@ -101,57 +85,28 @@ if __name__ == "__main__":
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
     #go to initial website 
-    driver.get("https://bbb.elan-ev.de/b/signin")
-
-    #fill the username and password fields
-    username_xpath = '//*[@id="session_username"]'
-    password_xpath = '//*[@id="session_password"]'
-    fill_input_xpath(username_xpath, USERNAME)
-    fill_input_xpath(password_xpath, PASSWORD)
-
-    #get current url for checking the login success later
-    login_url = driver.current_url
-    
-    #confirm login
-    confirmSignIn_xpath = '//*[@value="Sign in"]'
-    click_button_xpath(confirmSignIn_xpath)
+    driver.get(ROOM_URL)
 
     time.sleep(1)
 
-    #if url didnt change, login was unsuccessful
-    if(driver.current_url == login_url):
-        print("Login failed!")
-        driver.quit()
-        exit(-1)
+    #get field for entering the name of the user
+    enterName_xpath = '//*[@placeholder="Enter your name!"]'
+    fill_input_xpath(enterName_xpath, "Camera and Audio")
 
-    #use room with given room name if it exists, otherwise create a new room
-    if(room_exists(ROOMNAME)):
-        #click on the room to select it
-        selectExistingRoom_xpath = f"//*[contains(text(),'{ROOMNAME}')]"
-        click_button_xpath(selectExistingRoom_xpath)
+    time.sleep(1)
 
-        #give the browser time to notice the change
-        time.sleep(1)
-        
-        #join/start the meeting
-        start_xpath = '//*[@class="btn btn-primary btn-block start-button float-right"]'
-        click_button_xpath(start_xpath)
-    else:
-        #click on create room
-        createRoom_xpath = '//*[@id="create-room-block"]/div/div[2]'
-        click_button_xpath(createRoom_xpath)
-        
-        #set the room name 
-        roomName_xpath = '//*[@id="create-room-name"]'
-        fill_input_xpath(roomName_xpath, ROOMNAME)
+    #click the join button to join the meeting
+    joinRoom_xpath = '//*[@id="room-join"]'
+    click_button_xpath(joinRoom_xpath)
 
-        #join meeting automatically
-        automaticJoin_xpath = '//*[@id="auto-join-label"]/span[2]'
-        click_button_xpath(automaticJoin_xpath)
+    time.sleep(3)
 
-        #confirm room creation
-        confirmCreation_xpath = '//*[@value="Create Room"]'
-        click_button_xpath(confirmCreation_xpath)
+    #if the meeting is not started yet, the url does not change, therefore wait until url changes
+    while driver.current_url == ROOM_URL:
+        print("Waiting for meeting to start!")
+        time.sleep(5)
+
+    time.sleep(1)
 
 
     # #go into listen only mode
@@ -198,6 +153,6 @@ if __name__ == "__main__":
     click_button_xpath(startSharing_xPath)
 
 
-    time.sleep(10)
+    time.sleep(100)
 
     driver.quit()
