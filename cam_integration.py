@@ -69,6 +69,7 @@ if __name__ == "__main__":
     ROOM_URL = sys.argv[1]
     HEADLESS = (sys.argv[2].lower() == "true")
     CAMERA_NAME = sys.argv[3]
+    MIC_NAME = sys.argv[4]
 
     print(CAMERA_NAME)
     time.sleep(5)
@@ -152,6 +153,17 @@ if __name__ == "__main__":
     startSharing_xPath = '//*[@aria-label="Start sharing"]'
     click_button_xpath(startSharing_xPath)
 
+    time.sleep(1)
+
+    #expand list for changing audio devices
+    changeAudioDevice_xpath = '//*[@aria-label="Change audio device"]'
+    click_button_xpath(changeAudioDevice_xpath)
+
+    time.sleep(1)
+
+    #choose virtual microphone by its given name
+    roomname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
+    click_button_xpath(roomname_xpath)
 
     time.sleep(100)
 

@@ -8,12 +8,14 @@ RTSP_STREAM="rtsp://rtsp.stream/pattern"
 
 ROOM_URL="https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
 HEADLESS="false"
+MIC_INPUT="alsa_output.pci-0000_04_00.6.analog-stereo.monitor" #name of pulseaudio sink
 
 #declare properties for created virtual camera
 VC_VIDEO_DEVICE_NR=10
 VC_VIDEO_DEVICE="/dev/video$VC_VIDEO_DEVICE_NR"
 VC_CAMERA_NAME="Virtual Camera"
 
+MIC_NAME="Virtual_Microphone"
 
 #always remove v4l2loopback module from kernel before initializing it again
 sudo modprobe -r v4l2loopback
@@ -35,10 +37,13 @@ do
     sleep 1
 done
 
+#create virtual mic (remove module first, if already in use)
+pactl unload-module module-remap-source
+pactl load-module module-remap-source master=$MIC_INPUT source_name=virtmic source_properties=device.description=$MIC_NAME
 
 #get script directory and execute python script for connecting to the meeting
 SCRIPT_DIR="$(dirname "$0")"
-python3 $SCRIPT_DIR/cam_integration.py $ROOM_URL $HEADLESS "$VC_CAMERA_NAME"
+python3 $SCRIPT_DIR/cam_integration.py $ROOM_URL $HEADLESS "$VC_CAMERA_NAME" $MIC_NAME
 
 
 #kill ffmpeg 
