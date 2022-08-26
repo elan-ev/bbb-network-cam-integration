@@ -3,11 +3,11 @@
 #set -x #for debugging
 
 #example rtsp stream from https://www.wowza.com/developer/rtsp-stream-test
-RTSP_STREAM="rtsp://rtsp.stream/pattern"
-# RTSP_STREAM="rtsp://camera-42-209.virtuos.uos.de/mediainput/h264/stream_1"
+# RTSP_STREAM="rtsp://rtsp.stream/pattern"
+RTSP_STREAM="rtsp://131.173.172.32/mediainput/h264/stream_1"
 
 ROOM_URL="https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
-HEADLESS="false"
+HEADLESS="true"
 MIC_INPUT="alsa_output.pci-0000_04_00.6.analog-stereo.monitor" #name of pulseaudio sink
 
 #declare properties for created virtual camera
@@ -39,7 +39,10 @@ done
 
 #create virtual mic (remove module first, if already in use)
 pactl unload-module module-remap-source
-pactl load-module module-remap-source master=$MIC_INPUT source_name=virtmic source_properties=device.description=$MIC_NAME
+pactl unload-module module-null-sink
+pactl load-module module-null-sink sink_name=virtmic sink_properties=device.description=Virtual_Microphone_Sink
+pactl load-module module-remap-source master=virtmic.monitor source_name=virtmic source_properties=device.description=$MIC_NAME
+
 
 #get script directory and execute python script for connecting to the meeting
 SCRIPT_DIR="$(dirname "$0")"

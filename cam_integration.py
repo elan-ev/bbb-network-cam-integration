@@ -119,7 +119,7 @@ if __name__ == "__main__":
     click_button_xpath(microphone_xpath)
 
 
-    time.sleep(3)
+    time.sleep(10)
     
     if CHECK_AUDIO_DEVICES:
         #expand list for changing audio devices
@@ -144,11 +144,11 @@ if __name__ == "__main__":
     selectCamera_xpath = '//*[@id="setCam"]'
     select_option(selectCamera_xpath, CAMERA_NAME)
 
-    time.sleep(1)
+    time.sleep(2)
 
     selectQuality_xpath = '//*[@id="setQuality"]'
     select_last_option(selectQuality_xpath)
-    time.sleep(1)
+    time.sleep(2)
 
     startSharing_xPath = '//*[@aria-label="Start sharing"]'
     click_button_xpath(startSharing_xPath)
