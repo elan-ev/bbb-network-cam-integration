@@ -80,7 +80,7 @@ def get_video_stream(stream_url, device_number):
     """
     Uses ffmpeg to retrieve the rtsp stream and play it into the virtual camera device
     """
-    command = f"ffmpeg -loglevel error -rtsp_transport tcp -i {stream_url} -f v4l2 -vcodec rawvideo -pix_fmt yuv420p /dev/video{device_number}"
+    command = f"ffmpeg -rtsp_transport tcp -i {stream_url} -f v4l2 -vcodec rawvideo -pix_fmt yuv420p /dev/video{device_number}"
     print(command)
 
     ffmpeg_proc = subprocess.Popen(shlex.split(command), shell=False)
@@ -203,13 +203,13 @@ if __name__ == "__main__":
     #activate speakers
     microphone_xpath = '//*[@aria-label="Microphone"]'
     click_button_xpath(microphone_xpath)
-    time.sleep(3)
+    time.sleep(6)
 
 
     #click the share camera button to open the sharing dialogue
     shareCamera_xpath = '//*[@aria-label="Share webcam"]'
     click_button_xpath(shareCamera_xpath)
-    time.sleep(3)
+    time.sleep(5)
 
     #select the virtual camera for sharing
     selectCamera_xpath = '//*[@id="setCam"]'
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     #select video quality for sharing the camera
     selectQuality_xpath = '//*[@id="setQuality"]'
     select_last_option(selectQuality_xpath)
-    time.sleep(10)
+    time.sleep(3)
 
     #start sharing the camera
     startSharing_xPath = '//*[@aria-label="Start sharing"]'
