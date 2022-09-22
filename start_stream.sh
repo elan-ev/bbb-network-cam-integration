@@ -14,4 +14,4 @@ MIC_NAME="Virtual_Microphone"
 
 #get script directory and execute python script for connecting to the meeting
 SCRIPT_DIR="$(dirname "$0")"
-python3 $SCRIPT_DIR/cam_integration.py $ROOM_URL $HEADLESS $VC_CAMERA_NAME  $RTSP_STREAM $MIC_NAME
+python3 $SCRIPT_DIR/cam_integration.py $ROOM_URL $VC_CAMERA_NAME $RTSP_STREAM $MIC_NAME
