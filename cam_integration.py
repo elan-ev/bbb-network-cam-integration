@@ -38,19 +38,32 @@ def manage_ffmpeg(stream_url, device_number):
     Starts the ffmpeg proess to retrieve the rtsp stream
     Monitors the cpu usage of the ffmpeg process and restarts it if needed
     """
-    pid = get_video_stream(stream_url, device_number)
+    ffmpeg_pid = get_video_stream(stream_url, device_number)
+    ffplay_pid = get_audio_stream(stream_url)
 
     while RUNNING:
-        if not monitor_process(pid, 1.0):
+        if not monitor_process(ffmpeg_pid, 1.0):
             print("Restarting ffmpeg!")
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.kill(ffmpeg_pid, signal.SIGKILL)
             except OSError:
                 pass
-            pid = get_video_stream(stream_url, device_number)
-        time.sleep(1)
+            ffmpeg_pid = get_video_stream(stream_url, device_number)
+
+        if not monitor_process(ffplay_pid, 1.0):
+            print("Restarting ffplay!")
+            try:
+                os.kill(ffplay_pid, signal.SIGKILL)
+            except OSError:
+                pass
+            ffplay_pid = get_audio_stream(stream_url)
+        time.sleep(10)
     try:
-        os.kill(pid, signal.SIGKILL)
+        os.kill(ffmpeg_pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
+        os.kill(ffplay_pid, signal.SIGKILL)
     except OSError:
         pass
 
@@ -59,8 +72,8 @@ def monitor_process(pid, threshold):
     Uses pidstat to monitor the current cpu usage of the process
     If it is under the threshold, False is returned
     """
-    print("Monitoring ffmpeg!")
-    monitoring_command =  f"pidstat -p {pid} 1 1 | tail -1 | awk '{{print $8}}'"
+    print(f"Monitoring {pid}!")
+    monitoring_command =  f"pidstat -p {pid} 3 1 | tail -1 | awk '{{print $8}}'"
     monitoring_result = subprocess.run(monitoring_command, shell=True, capture_output=True, text=True)
     
     try:
@@ -81,13 +94,24 @@ def get_video_stream(stream_url, device_number):
     Uses ffmpeg to retrieve the rtsp stream and play it into the virtual camera device
     """
     command = f"ffmpeg -rtsp_transport tcp -i {stream_url} -f v4l2 -vcodec rawvideo -pix_fmt yuv420p /dev/video{device_number}"
-    print(command)
-
     ffmpeg_proc = subprocess.Popen(shlex.split(command), shell=False)
 
-    print(f"PID: {ffmpeg_proc.pid}")
+    print(f"ffmpeg PID: {ffmpeg_proc.pid}")
 
     return ffmpeg_proc.pid
+
+def get_audio_stream(stream_url):
+    """
+    Uses ffplay to play the sound of the rtsp stream
+    This sound should be picked up by the virtual mic
+    """
+    command = f"ffplay -rtsp_transport tcp -nodisp {RTSP_STREAM}"
+    ffplay_proc = subprocess.Popen(shlex.split(command), shell=False)
+
+    print(f"ffplay PID: {ffplay_proc.pid}")
+
+    return ffplay_proc.pid
+
     
 def create_virtual_mic(microphone_name):
     subprocess.run("pactl unload-module module-remap-source", shell=True)
@@ -151,13 +175,14 @@ if __name__ == "__main__":
     RTSP_STREAM = sys.argv[4]
     MIC_NAME = sys.argv[5]
 
+    #create and initialize audio resources    
+    create_virtual_mic(MIC_NAME)
+
     #initialize video resources, i.e., the virtual device and the ffmpeg process
     create_loopback_device(10, CAMERA_NAME)
     ffmpeg_thread = threading.Thread(target=manage_ffmpeg, args=(RTSP_STREAM, 10))
     ffmpeg_thread.start()
 
-    #create and initialize audio resources    
-    create_virtual_mic(MIC_NAME)
 
     time.sleep(5)
 
@@ -203,7 +228,7 @@ if __name__ == "__main__":
     #activate speakers
     microphone_xpath = '//*[@aria-label="Microphone"]'
     click_button_xpath(microphone_xpath)
-    time.sleep(6)
+    time.sleep(10)
 
 
     #click the share camera button to open the sharing dialogue
@@ -216,10 +241,11 @@ if __name__ == "__main__":
     select_option(selectCamera_xpath, CAMERA_NAME)
     time.sleep(2)
 
-    #select video quality for sharing the camera
-    selectQuality_xpath = '//*[@id="setQuality"]'
-    select_last_option(selectQuality_xpath)
-    time.sleep(3)
+    #for now, dont take highest quality video, since this makes the system more error-prone
+    # #select video quality for sharing the camera
+    # selectQuality_xpath = '//*[@id="setQuality"]'
+    # select_last_option(selectQuality_xpath)
+    # time.sleep(3)
 
     #start sharing the camera
     startSharing_xPath = '//*[@aria-label="Start sharing"]'
