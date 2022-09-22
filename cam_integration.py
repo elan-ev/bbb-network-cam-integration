@@ -18,8 +18,6 @@ import select
 import os
 import shlex
 
-#set camera name
-CAMERA_NAME = None
 driver = None
 RUNNING = True
 
@@ -105,7 +103,7 @@ def get_audio_stream(stream_url):
     Uses ffplay to play the sound of the rtsp stream
     This sound should be picked up by the virtual mic
     """
-    command = f"ffplay -rtsp_transport tcp -nodisp {RTSP_STREAM}"
+    command = f"ffplay -rtsp_transport tcp -nodisp {stream_url}"
     ffplay_proc = subprocess.Popen(shlex.split(command), shell=False)
 
     print(f"ffplay PID: {ffplay_proc.pid}")
@@ -167,20 +165,13 @@ def select_last_option(select_xpath):
     select.select_by_index(num_options - 1)
 
 
-if __name__ == "__main__":
-    #get command line arguments for configuration of the program
-    ROOM_URL = sys.argv[1]
-    HEADLESS = (sys.argv[2].lower() == "true")
-    CAMERA_NAME = sys.argv[3]
-    RTSP_STREAM = sys.argv[4]
-    MIC_NAME = sys.argv[5]
-
+def integrate_camera(room_url, camera_name, rtsp_stream, mic_name):
     #create and initialize audio resources    
-    create_virtual_mic(MIC_NAME)
+    create_virtual_mic(mic_name)
 
     #initialize video resources, i.e., the virtual device and the ffmpeg process
-    create_loopback_device(10, CAMERA_NAME)
-    ffmpeg_thread = threading.Thread(target=manage_ffmpeg, args=(RTSP_STREAM, 10))
+    create_loopback_device(10, camera_name)
+    ffmpeg_thread = threading.Thread(target=manage_ffmpeg, args=(rtsp_stream, 10))
     ffmpeg_thread.start()
 
 
@@ -190,15 +181,15 @@ if __name__ == "__main__":
     options = webdriver.ChromeOptions()
     options.add_argument("--use-fake-ui-for-media-stream")
     options.add_argument("--start-maximized")
-    if HEADLESS:
-        options.add_argument("--headless")
+    #options.add_argument("--headless")
     
+    global driver
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 
     #go to initial website 
-    driver.get(ROOM_URL)
-
+    driver.get(room_url)
+    
     time.sleep(1)
 
     #get field for entering the name of the user
@@ -214,7 +205,7 @@ if __name__ == "__main__":
     time.sleep(3)
 
     #if the meeting is not started yet, the url does not change, therefore wait until url changes
-    while driver.current_url == ROOM_URL:
+    while driver.current_url == room_url:
         print("Waiting for meeting to start!")
         time.sleep(5)
 
@@ -238,7 +229,7 @@ if __name__ == "__main__":
 
     #select the virtual camera for sharing
     selectCamera_xpath = '//*[@id="setCam"]'
-    select_option(selectCamera_xpath, CAMERA_NAME)
+    select_option(selectCamera_xpath, camera_name)
     time.sleep(2)
 
     #for now, dont take highest quality video, since this makes the system more error-prone
@@ -258,7 +249,7 @@ if __name__ == "__main__":
     time.sleep(1)
 
     #choose virtual microphone by its given name
-    roomname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
+    roomname_xpath = f"//*[contains(text(),'{mic_name}')]"
     click_button_xpath(roomname_xpath)
 
     time.sleep(100)
@@ -266,3 +257,6 @@ if __name__ == "__main__":
     driver.quit()
     
     RUNNING = False
+
+if __name__ == "__main__":
+    integrate_camera(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
