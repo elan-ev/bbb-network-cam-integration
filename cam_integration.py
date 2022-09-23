@@ -1,4 +1,3 @@
-import asyncio
 from multiprocessing.sharedctypes import Value
 import signal
 import threading
@@ -18,8 +17,29 @@ import select
 import os
 import shlex
 
+CAMERA_NAME = "virtual_camera"
+MIC_NAME = "virtual_mic"
 driver = None
 RUNNING = True
+ffplay_pid = None
+ffmpeg_pid = None
+
+def signal_handler(sig, frame):
+    print("Exiting cam_integration!")
+    global RUNNING
+    RUNNING = False
+    if ffplay_pid:
+        try:
+            os.kill(ffplay_pid, signal.SIGKILL)
+        except OSError:
+            pass
+    if ffmpeg_pid:
+        try:
+            os.kill(ffmpeg_pid, signal.SIGKILL)
+        except OSError:
+            pass
+    driver.quit()
+    sys.exit(0)
 
 def create_loopback_device(device_number, camera_name):
     """
@@ -31,13 +51,16 @@ def create_loopback_device(device_number, camera_name):
     subprocess.run(f'sudo modprobe v4l2loopback video_nr={device_number} card_label="{camera_name}" exclusive_caps=1', shell=True)
     time.sleep(1)
 
-def manage_ffmpeg(stream_url, device_number):
+def manage_ffmpeg(video_stream, audio_stream, device_number):
     """
     Starts the ffmpeg proess to retrieve the rtsp stream
     Monitors the cpu usage of the ffmpeg process and restarts it if needed
     """
-    ffmpeg_pid = get_video_stream(stream_url, device_number)
-    ffplay_pid = get_audio_stream(stream_url)
+    global ffmpeg_pid
+    global ffplay_pid
+    
+    ffmpeg_pid = get_video_stream(video_stream, device_number)
+    ffplay_pid = get_audio_stream(audio_stream)
 
     while RUNNING:
         if not monitor_process(ffmpeg_pid, 1.0):
@@ -46,7 +69,7 @@ def manage_ffmpeg(stream_url, device_number):
                 os.kill(ffmpeg_pid, signal.SIGKILL)
             except OSError:
                 pass
-            ffmpeg_pid = get_video_stream(stream_url, device_number)
+            ffmpeg_pid = get_video_stream(video_stream, device_number)
 
         if not monitor_process(ffplay_pid, 1.0):
             print("Restarting ffplay!")
@@ -54,7 +77,7 @@ def manage_ffmpeg(stream_url, device_number):
                 os.kill(ffplay_pid, signal.SIGKILL)
             except OSError:
                 pass
-            ffplay_pid = get_audio_stream(stream_url)
+            ffplay_pid = get_audio_stream(audio_stream)
         time.sleep(10)
     try:
         os.kill(ffmpeg_pid, signal.SIGKILL)
@@ -165,13 +188,13 @@ def select_last_option(select_xpath):
     select.select_by_index(num_options - 1)
 
 
-def integrate_camera(room_url, camera_name, rtsp_stream, mic_name):
+def integrate_camera(room_url, id, video_stream, audio_stream):
     #create and initialize audio resources    
-    create_virtual_mic(mic_name)
+    create_virtual_mic(MIC_NAME)
 
     #initialize video resources, i.e., the virtual device and the ffmpeg process
-    create_loopback_device(10, camera_name)
-    ffmpeg_thread = threading.Thread(target=manage_ffmpeg, args=(rtsp_stream, 10))
+    create_loopback_device(10, CAMERA_NAME)
+    ffmpeg_thread = threading.Thread(target=manage_ffmpeg, args=(video_stream, audio_stream, 10))
     ffmpeg_thread.start()
 
 
@@ -189,12 +212,12 @@ def integrate_camera(room_url, camera_name, rtsp_stream, mic_name):
 
     #go to initial website 
     driver.get(room_url)
-    
+
     time.sleep(1)
 
     #get field for entering the name of the user
     enterName_xpath = '//*[@placeholder="Enter your name!"]'
-    fill_input_xpath(enterName_xpath, "Camera and Audio")
+    fill_input_xpath(enterName_xpath, id)
 
     time.sleep(1)
 
@@ -229,7 +252,7 @@ def integrate_camera(room_url, camera_name, rtsp_stream, mic_name):
 
     #select the virtual camera for sharing
     selectCamera_xpath = '//*[@id="setCam"]'
-    select_option(selectCamera_xpath, camera_name)
+    select_option(selectCamera_xpath, CAMERA_NAME)
     time.sleep(2)
 
     #for now, dont take highest quality video, since this makes the system more error-prone
@@ -249,14 +272,15 @@ def integrate_camera(room_url, camera_name, rtsp_stream, mic_name):
     time.sleep(1)
 
     #choose virtual microphone by its given name
-    roomname_xpath = f"//*[contains(text(),'{mic_name}')]"
+    roomname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
     click_button_xpath(roomname_xpath)
 
     time.sleep(100)
 
     driver.quit()
-    
+    global RUNNING
     RUNNING = False
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal_handler)
     integrate_camera(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
