@@ -1,4 +1,5 @@
 from multiprocessing.sharedctypes import Value
+from pickle import FALSE
 import signal
 import threading
 from selenium import webdriver
@@ -21,6 +22,7 @@ CAMERA_NAME = "virtual_camera"
 MIC_NAME = "virtual_mic"
 driver = None
 RUNNING = True
+CAMERA_READY = False
 ffplay_pid = None
 ffmpeg_pid = None
 
@@ -79,14 +81,16 @@ def manage_ffmpeg(video_stream, audio_stream, device_number):
                 pass
             ffplay_pid = get_audio_stream(audio_stream)
         time.sleep(10)
-    try:
-        os.kill(ffmpeg_pid, signal.SIGKILL)
-    except OSError:
-        pass
-    try:
-        os.kill(ffplay_pid, signal.SIGKILL)
-    except OSError:
-        pass
+    if ffmpeg_pid:
+        try:
+            os.kill(ffmpeg_pid, signal.SIGKILL)
+        except OSError:
+            pass
+    if ffplay_pid:
+        try:
+            os.kill(ffplay_pid, signal.SIGKILL)
+        except OSError:
+            pass
 
 def monitor_process(pid, threshold):
     """
@@ -115,7 +119,23 @@ def get_video_stream(stream_url, device_number):
     Uses ffmpeg to retrieve the rtsp stream and play it into the virtual camera device
     """
     command = f"ffmpeg -rtsp_transport tcp -i {stream_url} -f v4l2 -vcodec rawvideo -pix_fmt yuv420p /dev/video{device_number}"
-    ffmpeg_proc = subprocess.Popen(shlex.split(command), shell=False)
+    if RUNNING:
+        ffmpeg_proc = subprocess.Popen(shlex.split(command), stdin=subprocess.PIPE, shell=False)
+    else:
+        return None
+
+    result = None
+    while RUNNING:
+        result = subprocess.run("v4l2-ctl --device=10 --all | grep 'Size Image' | head -1 |awk '{print $4}'", capture_output=True, shell=True)
+        print(f"Current result: {result.stdout}")
+        if result.stdout != b"0\n":
+            break
+        time.sleep(1)
+
+    print(f"Result of v4l2-ctl command: {result.stdout}")
+
+    global CAMERA_READY
+    CAMERA_READY = True
 
     print(f"ffmpeg PID: {ffmpeg_proc.pid}")
 
@@ -127,8 +147,10 @@ def get_audio_stream(stream_url):
     This sound should be picked up by the virtual mic
     """
     command = f"ffplay -rtsp_transport tcp -nodisp {stream_url}"
-    ffplay_proc = subprocess.Popen(shlex.split(command), shell=False)
-
+    if RUNNING:
+        ffplay_proc = subprocess.Popen(shlex.split(command), shell=False)
+    else:
+        return None
     print(f"ffplay PID: {ffplay_proc.pid}")
 
     return ffplay_proc.pid
@@ -244,6 +266,9 @@ def integrate_camera(room_url, id, video_stream, audio_stream):
     click_button_xpath(microphone_xpath)
     time.sleep(10)
 
+
+    while not CAMERA_READY:
+        time.sleep(1)
 
     #click the share camera button to open the sharing dialogue
     shareCamera_xpath = '//*[@aria-label="Share webcam"]'
