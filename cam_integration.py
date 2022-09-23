@@ -26,7 +26,7 @@ CAMERA_READY = False
 ffplay_pid = None
 ffmpeg_pid = None
 
-def signal_handler(sig, frame):
+def exit_program():
     print("Exiting cam_integration!")
     global RUNNING
     RUNNING = False
@@ -42,6 +42,9 @@ def signal_handler(sig, frame):
             pass
     driver.quit()
     sys.exit(0)
+
+def signal_handler(sig, frame):
+    exit_program()
 
 def create_loopback_device(device_number, camera_name):
     """
@@ -210,7 +213,7 @@ def select_last_option(select_xpath):
     select.select_by_index(num_options - 1)
 
 
-def integrate_camera(room_url, id, video_stream, audio_stream):
+def integrate_camera(room_url, id, video_stream, audio_stream, infrastructure):
     #create and initialize audio resources    
     create_virtual_mic(MIC_NAME)
 
@@ -237,17 +240,36 @@ def integrate_camera(room_url, id, video_stream, audio_stream):
 
     time.sleep(1)
 
-    #get field for entering the name of the user
-    enterName_xpath = '//*[@placeholder="Enter your name!"]'
-    fill_input_xpath(enterName_xpath, id)
+    if infrastructure == "greenlight":
 
-    time.sleep(1)
+        #get field for entering the name of the user
+        enterName_xpath = '//*[@placeholder="Enter your name!"]'
+        fill_input_xpath(enterName_xpath, id)
 
-    #click the join button to join the meeting
-    joinRoom_xpath = '//*[@id="room-join"]'
-    click_button_xpath(joinRoom_xpath)
+        time.sleep(1)
 
-    time.sleep(3)
+        #click the join button to join the meeting
+        joinRoom_xpath = '//*[@id="room-join"]'
+        click_button_xpath(joinRoom_xpath)
+
+        time.sleep(3)
+
+    elif infrastructure == "studip":
+        enterName_xpath = '//*[@name="name"]'
+        fill_input_xpath(enterName_xpath, id)
+
+        time.sleep(1)
+
+        #click the join button to join the meeting
+        joinRoom_xpath = '//*[@name="accept"]'
+        click_button_xpath(joinRoom_xpath)
+
+        time.sleep(3)
+
+    else:
+        print("Wrong infrastructure parameter set!")
+        exit_program()
+
 
     #if the meeting is not started yet, the url does not change, therefore wait until url changes
     while driver.current_url == room_url:
@@ -308,4 +330,9 @@ def integrate_camera(room_url, id, video_stream, audio_stream):
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
-    integrate_camera(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    room_url = sys.argv[1]
+    id = sys.argv[2]
+    video_stream = sys.argv[3]
+    audio_stream = sys.argv[4]
+    infrastructure = sys.argv[5]
+    integrate_camera(room_url, id, video_stream, audio_stream, infrastructure)

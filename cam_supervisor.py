@@ -48,6 +48,16 @@ def check_entry(entry, bool):
     else:
         return False
 
+def get_infrastructure(yml, room_url):
+    """Returns type of infrastructure that is used for the room (returns'studip' or 'greenlight')"""
+    types = yml["infrastructure"]
+    for prefix, infrastructure in types.items():
+        if prefix in room_url:
+            return infrastructure
+    #if no infrastructure matches, abort
+    print("No infrastructure matches the provided string!")
+    sys.exit(-1)
+
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     yaml_address = 'http://bbb-cam-config.vm.elan.codes/config.yml'
@@ -77,15 +87,21 @@ if __name__ == "__main__":
                 video = current_entry["video"]
                 audio = current_entry["audio"]
                 cwd = os.getcwd()
+                infrastructure = get_infrastructure(yml, location)
+
 
                 ####just test
                 ####
-                location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
+                # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
+                location = "https://studip.uni-osnabrueck.de/plugins.php/meetingplugin/room/index/537f5cd0bb94922d836f2a784d34eda9/d9b4fba817373f717b3063b42961ec72?cancel_login=1"
                 id = "42/201"
                 video = "rtsp://rtsp.stream/pattern"
                 audio = "rtsp://rtsp.stream/pattern"
+                infrastructure = get_infrastructure(yml, location)
                 ####
-                proc = subprocess.Popen(shlex.split(f"python3 {cwd}/cam_integration.py {location} {id} {video} {audio}"), shell=False)
+                ####
+
+                proc = subprocess.Popen(shlex.split(f"python3 {cwd}/cam_integration.py {location} {id} {video} {audio} {infrastructure}"), shell=False)
                 active_process = (current_entry, proc)
 
         time.sleep(60)
