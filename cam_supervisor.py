@@ -1,5 +1,6 @@
 import os
 import signal
+from bbb-network-cam-integration.cam_integration import exit_program
 import requests
 import yaml
 from dateutil.parser import *
@@ -10,8 +11,12 @@ import sys
 
 hostname = "bbb-cam.vm.elan.codes"
 active_process = None
+TESTING = False
 
-def signal_handler(sig, frame):
+class stream_config:
+    video_and_audio, video_only, audio_only = range(3)
+
+def exit_program():
     print("Exiting cam_supervisor!")
     if active_process:
         try:
@@ -20,10 +25,24 @@ def signal_handler(sig, frame):
             pass
     sys.exit(0)
 
-def get_yaml(address, auth):
-    r = requests.get(address, auth=auth)
+def signal_handler(sig, frame):
+    exit_program()
 
-    return yaml.load(r.text, Loader=yaml.CLoader)
+def get_yaml(address, auth):
+    if TESTING:
+        with open("config.yaml") as file:
+            yml = yaml.load(file, Loader=yaml.FullLoader)
+            return yml
+
+    r = requests.get(address, auth=auth)
+    
+    if r.status_code == 200:
+        print("Successful!")
+        return yaml.load(r.text, Loader=yaml.CLoader)
+    else:
+        print("Not successful!")
+        return None
+
 
 def get_schedule(yml):
     return yml["clients"][hostname]["schedule"]
@@ -56,7 +75,28 @@ def get_infrastructure(yml, room_url):
             return infrastructure
     #if no infrastructure matches, abort
     print("No infrastructure matches the provided string!")
-    sys.exit(-1)
+    exit_program()
+
+def get_stream_config(entry):
+    if entry["audio"] and entry["video"]:
+        return stream_config.video_and_audio
+    elif entry["video"]:
+        return stream_config.video_only
+    elif entry["audio"]:
+        return stream_config.audio_only
+    else:
+        print("Either video or audio stream has to be provided!")
+        exit_program()
+
+def get_command(cwd, config, location, id, video, audio, infrastructure):
+    if config == stream_config.video_and_audio:
+        command = f"python3 {cwd}/cam_integration.py {config} {location} {id} {infrastructure} {video} {audio}"
+    elif config == stream_config.video_only:
+        command = f"python3 {cwd}/cam_integration.py {config} {location} {id} {infrastructure} {video}"
+    else:
+        command = f"python3 {cwd}/cam_integration.py {config} {location} {id} {infrastructure} {audio}"
+    return command
+
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
@@ -75,7 +115,9 @@ if __name__ == "__main__":
                 active_process = None
 
         else:    
-            yml = get_yaml(yaml_address, yaml_auth)
+            newYml = get_yaml(yaml_address, yaml_auth)
+            if newYml:
+                yml = newYml
             schedule = get_schedule(yml)
 
             current_entry = check_schedule(schedule)
@@ -88,6 +130,7 @@ if __name__ == "__main__":
                 audio = current_entry["audio"]
                 cwd = os.getcwd()
                 infrastructure = get_infrastructure(yml, location)
+                config = get_stream_config(current_entry)
 
 
                 ####just test
@@ -98,10 +141,11 @@ if __name__ == "__main__":
                 video = "rtsp://rtsp.stream/pattern"
                 audio = "rtsp://rtsp.stream/pattern"
                 infrastructure = get_infrastructure(yml, location)
+                config = stream_config.audio_only
                 ####
                 ####
-
-                proc = subprocess.Popen(shlex.split(f"python3 {cwd}/cam_integration.py {location} {id} {video} {audio} {infrastructure}"), shell=False)
+                command = get_command(cwd, config, location, id, video, audio, infrastructure)
+                proc = subprocess.Popen(shlex.split(command), shell=False)
                 active_process = (current_entry, proc)
 
         time.sleep(60)
