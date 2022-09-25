@@ -1,3 +1,4 @@
+from email.mime import audio
 from multiprocessing.sharedctypes import Value
 from pickle import FALSE
 import signal
@@ -25,6 +26,9 @@ RUNNING = True
 CAMERA_READY = False
 ffplay_pid = None
 ffmpeg_pid = None
+
+class stream_config:
+    video_and_audio, video_only, audio_only = range(3)
 
 def exit_program():
     print("Exiting cam_integration!")
@@ -63,26 +67,30 @@ def manage_ffmpeg(video_stream, audio_stream, device_number):
     """
     global ffmpeg_pid
     global ffplay_pid
-    
-    ffmpeg_pid = get_video_stream(video_stream, device_number)
-    ffplay_pid = get_audio_stream(audio_stream)
+
+    if video_stream:    
+        ffmpeg_pid = get_video_stream(video_stream, device_number)
+    if audio_stream:
+        ffplay_pid = get_audio_stream(audio_stream)
 
     while RUNNING:
-        if not monitor_process(ffmpeg_pid, 1.0):
-            print("Restarting ffmpeg!")
-            try:
-                os.kill(ffmpeg_pid, signal.SIGKILL)
-            except OSError:
-                pass
-            ffmpeg_pid = get_video_stream(video_stream, device_number)
+        if video_stream:
+            if not monitor_process(ffmpeg_pid, 1.0):
+                print("Restarting ffmpeg!")
+                try:
+                    os.kill(ffmpeg_pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                ffmpeg_pid = get_video_stream(video_stream, device_number)
 
-        if not monitor_process(ffplay_pid, 1.0):
-            print("Restarting ffplay!")
-            try:
-                os.kill(ffplay_pid, signal.SIGKILL)
-            except OSError:
-                pass
-            ffplay_pid = get_audio_stream(audio_stream)
+        if audio_stream:
+            if not monitor_process(ffplay_pid, 1.0):
+                print("Restarting ffplay!")
+                try:
+                    os.kill(ffplay_pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                ffplay_pid = get_audio_stream(audio_stream)
         time.sleep(10)
     if ffmpeg_pid:
         try:
@@ -213,12 +221,16 @@ def select_last_option(select_xpath):
     select.select_by_index(num_options - 1)
 
 
-def integrate_camera(room_url, id, video_stream, audio_stream, infrastructure):
-    #create and initialize audio resources    
-    create_virtual_mic(MIC_NAME)
+def integrate_camera(room_url, id, infrastructure, video_stream, audio_stream):
+    print(f"video stream: {video_stream}")
+    print(f"audio stream: {audio_stream}")
+    #create and initialize audio resources
+    if audio_stream:    
+        create_virtual_mic(MIC_NAME)
 
     #initialize video resources, i.e., the virtual device and the ffmpeg process
-    create_loopback_device(10, CAMERA_NAME)
+    if video_stream:
+        create_loopback_device(10, CAMERA_NAME)
     ffmpeg_thread = threading.Thread(target=manage_ffmpeg, args=(video_stream, audio_stream, 10))
     ffmpeg_thread.start()
 
@@ -283,44 +295,53 @@ def integrate_camera(room_url, id, video_stream, audio_stream, infrastructure):
     # listenOnly_xpath ='//*[@class="icon--2q1XXw icon-bbb-listen"]'
     # click_button_xpath(listenOnly_xpath)
 
-    #activate speakers
-    microphone_xpath = '//*[@aria-label="Microphone"]'
-    click_button_xpath(microphone_xpath)
+    if audio_stream:
+        #activate microphone
+        microphone_xpath = '//*[@aria-label="Microphone"]'
+        click_button_xpath(microphone_xpath)
+    else:
+        #go into listen only mode
+        listenOnly_xpath ='//*[@aria-label="Listen only"]'
+        click_button_xpath(listenOnly_xpath)
+
     time.sleep(10)
 
 
-    while not CAMERA_READY:
-        time.sleep(1)
+    if video_stream:
+        while not CAMERA_READY:
+            time.sleep(1)
 
     #click the share camera button to open the sharing dialogue
-    shareCamera_xpath = '//*[@aria-label="Share webcam"]'
-    click_button_xpath(shareCamera_xpath)
-    time.sleep(5)
+    if video_stream:
+        shareCamera_xpath = '//*[@aria-label="Share webcam"]'
+        click_button_xpath(shareCamera_xpath)
+        time.sleep(5)
 
-    #select the virtual camera for sharing
-    selectCamera_xpath = '//*[@id="setCam"]'
-    select_option(selectCamera_xpath, CAMERA_NAME)
-    time.sleep(2)
+        #select the virtual camera for sharing
+        selectCamera_xpath = '//*[@id="setCam"]'
+        select_option(selectCamera_xpath, CAMERA_NAME)
+        time.sleep(2)
 
-    #for now, dont take highest quality video, since this makes the system more error-prone
-    # #select video quality for sharing the camera
-    # selectQuality_xpath = '//*[@id="setQuality"]'
-    # select_last_option(selectQuality_xpath)
-    # time.sleep(3)
+        #for now, dont take highest quality video, since this makes the system more error-prone
+        # #select video quality for sharing the camera
+        # selectQuality_xpath = '//*[@id="setQuality"]'
+        # select_last_option(selectQuality_xpath)
+        # time.sleep(3)
 
-    #start sharing the camera
-    startSharing_xPath = '//*[@aria-label="Start sharing"]'
-    click_button_xpath(startSharing_xPath)
-    time.sleep(1)
+        #start sharing the camera
+        startSharing_xPath = '//*[@aria-label="Start sharing"]'
+        click_button_xpath(startSharing_xPath)
+        time.sleep(1)
 
-    #expand list for changing audio devices
-    changeAudioDevice_xpath = '//*[@aria-label="Change audio device"]'
-    click_button_xpath(changeAudioDevice_xpath)
-    time.sleep(1)
+    if audio_stream:
+        #expand list for changing audio devices
+        changeAudioDevice_xpath = '//*[@aria-label="Change audio device"]'
+        click_button_xpath(changeAudioDevice_xpath)
+        time.sleep(1)
 
-    #choose virtual microphone by its given name
-    roomname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
-    click_button_xpath(roomname_xpath)
+        #choose virtual microphone by its given name
+        micname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
+        click_button_xpath(micname_xpath)
 
     time.sleep(100)
 
@@ -330,9 +351,24 @@ def integrate_camera(room_url, id, video_stream, audio_stream, infrastructure):
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
-    room_url = sys.argv[1]
-    id = sys.argv[2]
-    video_stream = sys.argv[3]
-    audio_stream = sys.argv[4]
-    infrastructure = sys.argv[5]
-    integrate_camera(room_url, id, video_stream, audio_stream, infrastructure)
+    config = int(sys.argv[1])
+
+
+    print(f"Config: {config}")
+
+    room_url = sys.argv[2]
+    id = sys.argv[3]
+    infrastructure = sys.argv[4]
+
+    if config == stream_config.video_and_audio:
+        video_stream = sys.argv[5]
+        audio_stream = sys.argv[6]
+    elif config == stream_config.video_only:
+        video_stream = sys.argv[5]
+        audio_stream = None
+    else:
+        video_stream = None
+        audio_stream = sys.argv[5]
+
+
+    integrate_camera(room_url, id, infrastructure, video_stream, audio_stream)
