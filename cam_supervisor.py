@@ -1,6 +1,5 @@
 import os
 import signal
-from bbb-network-cam-integration.cam_integration import exit_program
 import requests
 import yaml
 from dateutil.parser import *
@@ -67,6 +66,32 @@ def check_entry(entry, bool):
     else:
         return False
 
+def start_process(entry):
+    #print(entry)
+    location = entry["location"]
+    id = entry["id"]
+    video = entry["video"]
+    audio = entry["audio"]
+    cwd = os.getcwd()
+    infrastructure = get_infrastructure(yml, location)
+    config = get_stream_config(entry)
+
+    ####just test
+    ####
+    # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
+    location = "https://studip.uni-osnabrueck.de/plugins.php/meetingplugin/room/index/537f5cd0bb94922d836f2a784d34eda9/d9b4fba817373f717b3063b42961ec72?cancel_login=1"
+    id = "42/201"
+    video = "rtsp://rtsp.stream/pattern"
+    audio = "rtsp://rtsp.stream/pattern"
+    infrastructure = get_infrastructure(yml, location)
+    config = stream_config.video_and_audio
+    ####
+    ####
+    command = get_command(cwd, config, location, id, video, audio, infrastructure)
+    proc = subprocess.Popen(shlex.split(command), shell=False)
+    global active_process
+    active_process = (entry, proc)
+
 def get_infrastructure(yml, room_url):
     """Returns type of infrastructure that is used for the room (returns'studip' or 'greenlight')"""
     types = yml["infrastructure"]
@@ -113,6 +138,9 @@ if __name__ == "__main__":
                 except OSError:
                     pass
                 active_process = None
+            elif active_process[1].poll() is not None:
+                print("Restarting active process!")
+                start_process(active_process[0])
 
         else:    
             newYml = get_yaml(yaml_address, yaml_auth)
@@ -123,30 +151,7 @@ if __name__ == "__main__":
             current_entry = check_schedule(schedule)
 
             if current_entry:
-                #print(current_entry)
-                location = current_entry["location"]
-                id = current_entry["id"]
-                video = current_entry["video"]
-                audio = current_entry["audio"]
-                cwd = os.getcwd()
-                infrastructure = get_infrastructure(yml, location)
-                config = get_stream_config(current_entry)
-
-
-                ####just test
-                ####
-                # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
-                location = "https://studip.uni-osnabrueck.de/plugins.php/meetingplugin/room/index/537f5cd0bb94922d836f2a784d34eda9/d9b4fba817373f717b3063b42961ec72?cancel_login=1"
-                id = "42/201"
-                video = "rtsp://rtsp.stream/pattern"
-                audio = "rtsp://rtsp.stream/pattern"
-                infrastructure = get_infrastructure(yml, location)
-                config = stream_config.audio_only
-                ####
-                ####
-                command = get_command(cwd, config, location, id, video, audio, infrastructure)
-                proc = subprocess.Popen(shlex.split(command), shell=False)
-                active_process = (current_entry, proc)
+                start_process(current_entry)
 
         time.sleep(60)
 
