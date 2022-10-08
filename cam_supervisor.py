@@ -83,6 +83,8 @@ def start_process(entry):
     id = "42/201"
     video = "rtsp://rtsp.stream/pattern"
     audio = "rtsp://rtsp.stream/pattern"
+    # video = "rtsp://131.173.172.32/mediainput/h264/stream_1"
+    # audio = "rtsp://131.173.172.32/mediainput/h264/stream_1"
     infrastructure = get_infrastructure(yml, location)
     config = stream_config.video_and_audio
     ####
@@ -115,11 +117,11 @@ def get_stream_config(entry):
 
 def get_command(cwd, config, location, id, video, audio, infrastructure):
     if config == stream_config.video_and_audio:
-        command = f"python3 {cwd}/cam_integration.py {config} {location} {id} {infrastructure} {video} {audio}"
+        command = f"python3 {cwd}/cam_integration.py {location} {id} {infrastructure} --video {video} --audio {audio}"
     elif config == stream_config.video_only:
-        command = f"python3 {cwd}/cam_integration.py {config} {location} {id} {infrastructure} {video}"
+        command = f"python3 {cwd}/cam_integration.py {location} {id} {infrastructure} --video {video}"
     else:
-        command = f"python3 {cwd}/cam_integration.py {config} {location} {id} {infrastructure} {audio}"
+        command = f"python3 {cwd}/cam_integration.py {location} {id} {infrastructure} --audio {audio}"
     return command
 
 
