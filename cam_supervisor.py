@@ -7,6 +7,7 @@ import time
 import subprocess
 import shlex
 import sys
+import logging
 
 hostname = "bbb-cam.vm.elan.codes"
 active_process = None
@@ -16,7 +17,7 @@ class stream_config:
     video_and_audio, video_only, audio_only = range(3)
 
 def exit_program():
-    print("Exiting cam_supervisor!")
+    logging.error("Exiting cam_supervisor!")
     if active_process:
         try:
             os.kill(active_process[1].pid, signal.SIGINT)
@@ -36,10 +37,10 @@ def get_yaml(address, auth):
     r = requests.get(address, auth=auth)
     
     if r.status_code == 200:
-        print("Successful!")
+        logging.info("Successfully retrieved config yaml!")
         return yaml.load(r.text, Loader=yaml.CLoader)
     else:
-        print("Not successful!")
+        logging.warning("Could not get config yaml!")
         return None
 
 
@@ -67,7 +68,6 @@ def check_entry(entry, bool):
         return False
 
 def start_process(entry):
-    #print(entry)
     location = entry["location"]
     id = entry["id"]
     video = entry["video"]
@@ -101,7 +101,7 @@ def get_infrastructure(yml, room_url):
         if prefix in room_url:
             return infrastructure
     #if no infrastructure matches, abort
-    print("No infrastructure matches the provided string!")
+    logging.critical("No infrastructure matches the provided string!")
     exit_program()
 
 def get_stream_config(entry):
@@ -112,7 +112,7 @@ def get_stream_config(entry):
     elif entry["audio"]:
         return stream_config.audio_only
     else:
-        print("Either video or audio stream has to be provided!")
+        logging.critical("Either video or audio stream has to be provided!")
         exit_program()
 
 def get_command(cwd, config, location, id, video, audio, infrastructure):
@@ -126,6 +126,9 @@ def get_command(cwd, config, location, id, video, audio, infrastructure):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, filename="cam_supervisor.log", filemode="w",
+                        format="%(asctime)s - %(levelname)s - %(message)s")
+
     signal.signal(signal.SIGINT, signal_handler)
     yaml_address = 'http://bbb-cam-config.vm.elan.codes/config.yml'
     yaml_auth = ('bbb-stream', 'bbb-stream')
@@ -134,14 +137,14 @@ if __name__ == "__main__":
     while True:
         if active_process:
             if not check_entry(active_process[0], False):
-                print("Stop time for active process reached!")
+                logging.info("Stop time for active process reached!")
                 try:
                     os.kill(active_process[1].pid, signal.SIGINT)
                 except OSError:
                     pass
                 active_process = None
             elif active_process[1].poll() is not None:
-                print("Restarting active process!")
+                logging.error("Restarting active process!")
                 start_process(active_process[0])
 
         else:    

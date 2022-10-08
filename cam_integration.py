@@ -19,6 +19,7 @@ import select
 import os
 import shlex
 import argparse
+import logging
 
 CAMERA_NAME = "virtual_camera"
 MIC_NAME = "virtual_mic"
@@ -30,7 +31,7 @@ ffmpeg_pid = None
 
 
 def exit_program():
-    print("Exiting cam_integration!")
+    logging.info("Exiting cam_integration!")
     global RUNNING
     RUNNING = False
     if ffplay_pid:
@@ -47,6 +48,7 @@ def exit_program():
     sys.exit(0)
 
 def signal_handler(sig, frame):
+    logging.info("Received SIGINT")
     exit_program()
 
 def create_loopback_device(device_number, camera_name):
@@ -75,7 +77,7 @@ def manage_ffmpeg(video_stream, audio_stream, device_number):
     while RUNNING:
         if video_stream:
             if not monitor_process(ffmpeg_pid, 1.0):
-                print("Restarting ffmpeg!")
+                logging.error("Restarting ffmpeg!")
                 try:
                     os.kill(ffmpeg_pid, signal.SIGKILL)
                 except OSError:
@@ -84,7 +86,7 @@ def manage_ffmpeg(video_stream, audio_stream, device_number):
 
         if audio_stream:
             if not monitor_process(ffplay_pid, 1.0):
-                print("Restarting ffplay!")
+                logging.error("Restarting ffplay!")
                 try:
                     os.kill(ffplay_pid, signal.SIGKILL)
                 except OSError:
@@ -107,7 +109,7 @@ def monitor_process(pid, threshold):
     Uses pidstat to monitor the current cpu usage of the process
     If it is under the threshold, False is returned
     """
-    print(f"Monitoring {pid}!")
+    logging.debug(f"Monitoring {pid}!")
     monitoring_command =  f"pidstat -p {pid} 3 1 | tail -1 | awk '{{print $8}}'"
     monitoring_result = subprocess.run(monitoring_command, shell=True, capture_output=True, text=True)
     
@@ -115,10 +117,10 @@ def monitor_process(pid, threshold):
         cpu_usage = float(monitoring_result.stdout.replace(",","."))
     except ValueError:
         return False
-    print(cpu_usage)
+    logging.debug(cpu_usage)
 
     if cpu_usage < threshold:
-        print(f"There is a problem with process {pid}!")
+        logging.error(f"There is a problem with process {pid}!")
         return False
     
     return True
@@ -128,7 +130,7 @@ def get_video_stream(stream_url, device_number):
     """
     Uses ffmpeg to retrieve the rtsp stream and play it into the virtual camera device
     """
-    command = f"ffmpeg -rtsp_transport tcp -i {stream_url} -f v4l2 -vcodec rawvideo -pix_fmt yuv420p /dev/video{device_number}"
+    command = f"ffmpeg -loglevel error -rtsp_transport tcp -i {stream_url} -f v4l2 -vcodec rawvideo -pix_fmt yuv420p /dev/video{device_number}"
     if RUNNING:
         ffmpeg_proc = subprocess.Popen(shlex.split(command), stdin=subprocess.PIPE, shell=False)
     else:
@@ -137,17 +139,17 @@ def get_video_stream(stream_url, device_number):
     result = None
     while RUNNING:
         result = subprocess.run("v4l2-ctl --device=10 --all | grep 'Size Image' | head -1 |awk '{print $4}'", capture_output=True, shell=True)
-        print(f"Current result: {result.stdout}")
+        logging.debug(f"Current size image: {result.stdout}")
         if result.stdout != b"0\n":
             break
         time.sleep(1)
 
-    print(f"Result of v4l2-ctl command: {result.stdout}")
+    logging.debug(f"Result of v4l2-ctl command: {result.stdout}")
 
     global CAMERA_READY
     CAMERA_READY = True
 
-    print(f"ffmpeg PID: {ffmpeg_proc.pid}")
+    logging.info(f"ffmpeg PID: {ffmpeg_proc.pid}")
 
     return ffmpeg_proc.pid
 
@@ -156,12 +158,12 @@ def get_audio_stream(stream_url):
     Uses ffplay to play the sound of the rtsp stream
     This sound should be picked up by the virtual mic
     """
-    command = f"ffplay -rtsp_transport tcp -nodisp {stream_url}"
+    command = f"ffplay -loglevel error -rtsp_transport tcp -nodisp {stream_url}"
     if RUNNING:
         ffplay_proc = subprocess.Popen(shlex.split(command), shell=False)
     else:
         return None
-    print(f"ffplay PID: {ffplay_proc.pid}")
+    logging.info(f"ffplay PID: {ffplay_proc.pid}")
 
     return ffplay_proc.pid
 
@@ -169,9 +171,11 @@ def get_audio_stream(stream_url):
 def create_virtual_mic(microphone_name):
     subprocess.run("pactl unload-module module-remap-source", shell=True)
     subprocess.run("pactl unload-module module-null-sink", shell=True)
-    subprocess.run("pactl load-module module-null-sink sink_name=virtmic sink_properties=device.description=Virtual_Microphone_Sink", shell=True)
-    subprocess.run(f"pactl load-module module-remap-source master=virtmic.monitor source_name=virtmic source_properties=device.description={microphone_name}", shell=True)
+    module_null_sink_output = subprocess.run("pactl load-module module-null-sink sink_name=virtmic sink_properties=device.description=Virtual_Microphone_Sink", shell=True, capture_output=True, text=True)
+    module_remap_source_output = subprocess.run(f"pactl load-module module-remap-source master=virtmic.monitor source_name=virtmic source_properties=device.description={microphone_name}", shell=True, capture_output=True, text=True)
     
+    logging.info(f"module-null-sink number: {module_null_sink_output.stdout}")
+    logging.info(f"module-remap-source number: {module_remap_source_output.stdout}")
 
 def wait_for(element, timeout=10):
     """Waits for an element to be located and clickable."""
@@ -188,7 +192,7 @@ def click_button_xpath(button_xpath):
         element = driver.find_element(by=By.XPATH, value=button_xpath)
         driver.execute_script("arguments[0].click();", element)
     except NoSuchElementException:
-        print(f"Button with XPath: {button_xpath} not found! Aborting.")
+        logging.critical(f"Button with XPath: {button_xpath} not found! Aborting.")
         driver.quit()
         exit(-1)
 
@@ -200,7 +204,7 @@ def fill_input_xpath(input_xpath, input):
         wait_for((By.XPATH, input_xpath))
         driver.find_element(by=By.XPATH, value=input_xpath).send_keys(input)
     except NoSuchElementException:
-        print(f"Input with XPath: {input_xpath} not found! Aborting.")
+        logging.critical(f"Input with XPath: {input_xpath} not found! Aborting.")
         driver.quit()
         exit(-1)
 
@@ -221,8 +225,8 @@ def select_last_option(select_xpath):
 
 
 def integrate_camera(room_url, id, infrastructure, video_stream, audio_stream):
-    print(f"video stream: {video_stream}")
-    print(f"audio stream: {audio_stream}")
+    logging.debug(f"video stream: {video_stream}")
+    logging.debug(f"audio stream: {audio_stream}")
     #create and initialize audio resources
     if audio_stream:    
         create_virtual_mic(MIC_NAME)
@@ -278,13 +282,13 @@ def integrate_camera(room_url, id, infrastructure, video_stream, audio_stream):
         time.sleep(3)
 
     else:
-        print("Wrong infrastructure parameter set!")
+        logging.critical("Wrong infrastructure parameter set!")
         exit_program()
 
 
     #if the meeting is not started yet, the url does not change, therefore wait until url changes
     while driver.current_url == room_url:
-        print("Waiting for meeting to start!")
+        logging.warning("Waiting for meeting to start!")
         time.sleep(5)
 
     time.sleep(1)
@@ -349,6 +353,9 @@ def integrate_camera(room_url, id, infrastructure, video_stream, audio_stream):
     RUNNING = False
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, filename="cam_integration.log", filemode="w",
+                        format="%(asctime)s - %(levelname)s - %(message)s")
+
     signal.signal(signal.SIGINT, signal_handler)
 
     parser = argparse.ArgumentParser()
