@@ -18,6 +18,7 @@ import subprocess
 import select
 import os
 import shlex
+import argparse
 
 CAMERA_NAME = "virtual_camera"
 MIC_NAME = "virtual_mic"
@@ -27,8 +28,6 @@ CAMERA_READY = False
 ffplay_pid = None
 ffmpeg_pid = None
 
-class stream_config:
-    video_and_audio, video_only, audio_only = range(3)
 
 def exit_program():
     print("Exiting cam_integration!")
@@ -351,24 +350,21 @@ def integrate_camera(room_url, id, infrastructure, video_stream, audio_stream):
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
-    config = int(sys.argv[1])
 
+    parser = argparse.ArgumentParser()
 
-    print(f"Config: {config}")
+    parser.add_argument("room_url", help="URL of the meeting room")
+    parser.add_argument("id", help="Name to be displayed in the meeting")
+    parser.add_argument("infrastructure", help="Infrastructure used for the meeting room")
+    parser.add_argument("--audio", help="URL of the audio stream")
+    parser.add_argument("--video", help="URL of the video stream")
 
-    room_url = sys.argv[2]
-    id = sys.argv[3]
-    infrastructure = sys.argv[4]
+    args = parser.parse_args()
 
-    if config == stream_config.video_and_audio:
-        video_stream = sys.argv[5]
-        audio_stream = sys.argv[6]
-    elif config == stream_config.video_only:
-        video_stream = sys.argv[5]
-        audio_stream = None
-    else:
-        video_stream = None
-        audio_stream = sys.argv[5]
-
+    room_url = args.room_url
+    id = args.id
+    infrastructure = args.infrastructure
+    audio_stream = args.audio
+    video_stream = args.video
 
     integrate_camera(room_url, id, infrastructure, video_stream, audio_stream)
