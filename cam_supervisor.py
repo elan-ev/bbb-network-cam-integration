@@ -11,7 +11,7 @@ import logging
 
 hostname = "bbb-cam.vm.elan.codes"
 active_process = None
-TESTING = False
+TESTING = True
 
 
 class stream_config:
@@ -34,10 +34,6 @@ def signal_handler(sig, frame):
 
 
 def get_yaml(address, auth):
-    if TESTING:
-        with open("config.yaml") as file:
-            return yaml.load(file, Loader=yaml.FullLoader)
-
     r = requests.get(address, auth=auth)
 
     if r.status_code == 200:
@@ -55,17 +51,17 @@ def get_schedule(yml):
 def check_schedule(schedule):
     """Returns schedule entry that should be active, or None if none exist"""
     for entry in schedule:
-        if check_entry(entry, True):
+        if check_entry(entry):
             return entry
     return None
 
 
-def check_entry(entry, bool):
+def check_entry(entry):
     start_ts = parse(entry["start"]).timestamp()
     stop_ts = parse(entry["stop"]).timestamp()
     now_ts = time.time()
 
-    if bool:
+    if TESTING and not active_process:
         now_ts = start_ts + 10  # ensure that time is in bounds on first entry
 
     if start_ts < now_ts and now_ts < stop_ts:
@@ -84,17 +80,18 @@ def start_process(entry):
     config = get_stream_config(entry)
 
     # just test
-    # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
-    location = "https://studip.uni-osnabrueck.de/plugins.php/meetingplugin/"\
-               "room/index/537f5cd0bb94922d836f2a784d34eda9/d9b4fba817373f7"\
-               "17b3063b42961ec72?cancel_login=1"
-    id = "42/201"
-    video = "rtsp://rtsp.stream/pattern"
-    audio = "rtsp://rtsp.stream/pattern"
-    # video = "rtsp://131.173.172.32/mediainput/h264/stream_1"
-    # audio = "rtsp://131.173.172.32/mediainput/h264/stream_1"
-    infrastructure = get_infrastructure(yml, location)
-    config = stream_config.video_and_audio
+    if TESTING:
+        location = "https://studip.uni-osnabrueck.de/plugins.php/meetingplugin/"\
+                "room/index/537f5cd0bb94922d836f2a784d34eda9/d9b4fba817373f7"\
+                "17b3063b42961ec72?cancel_login=1"
+        # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
+        id = "42/201"
+        # video = "rtsp://rtsp.stream/pattern"
+        # audio = "rtsp://rtsp.stream/pattern"
+        video = "rtsp://131.173.172.32/mediainput/h264/stream_1"
+        audio = "rtsp://131.173.172.32/mediainput/h264/stream_1"
+        infrastructure = get_infrastructure(yml, location)
+        config = stream_config.video_and_audio
     # just test
 
     command = get_command(cwd, config, location, id,
@@ -154,7 +151,7 @@ if __name__ == "__main__":
 
     while True:
         if active_process:
-            if not check_entry(active_process[0], False):
+            if not check_entry(active_process[0]):
                 logging.info("Stop time for active process reached!")
                 try:
                     os.kill(active_process[1].pid, signal.SIGINT)

@@ -275,7 +275,7 @@ def integrate_camera(room_url, id, infrastructure, video_stream, audio_stream):
     options = webdriver.ChromeOptions()
     options.add_argument("--use-fake-ui-for-media-stream")
     options.add_argument("--start-maximized")
-    # options.add_argument("--headless")
+    options.add_argument("--headless")
 
     global driver
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
