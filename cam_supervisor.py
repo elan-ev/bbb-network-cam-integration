@@ -138,7 +138,7 @@ def start_process(entry: dict) -> None:
         entry (dict): Configuration to be used for the stream
     """
     location = entry["location"]
-    id = entry["id"]
+    name = entry["id"]
     video = entry["video"]
     audio = entry["audio"]
     cwd = os.getcwd()
@@ -151,7 +151,7 @@ def start_process(entry: dict) -> None:
                 "meetingplugin/room/index/537f5cd0bb94922d836f2a784d34eda9/"\
                 "d9b4fba817373f717b3063b42961ec72?cancel_login=1"
         # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
-        id = "42/201"
+        name = "42/201"
         # video = "rtsp://rtsp.stream/pattern"
         # audio = "rtsp://rtsp.stream/pattern"
         video = "rtsp://131.173.172.32/mediainput/h264/stream_1"
@@ -160,7 +160,7 @@ def start_process(entry: dict) -> None:
         config = stream_config.video_and_audio
     # just test
 
-    command = get_command(cwd, config, location, id,
+    command = get_command(cwd, config, location, name,
                           video, audio, infrastructure)
     proc = subprocess.Popen(shlex.split(command), shell=False)
     global active_process
@@ -208,7 +208,7 @@ def get_stream_config(entry: dict) -> stream_config:
         exit_program()
 
 
-def get_command(cwd: str, config: str, location: str, id: str, video: str,
+def get_command(cwd: str, config: str, location: str, name: str, video: str,
                 audio: str, infrastructure: str) -> str:
     """
     Construct command for starting cam integration
@@ -217,7 +217,7 @@ def get_command(cwd: str, config: str, location: str, id: str, video: str,
         cwd (str): Current working directory
         config (stream_config): Describes whether audio/video should be used
         location (str): URL of the meeting room
-        id (str): Name to be displayed in the meeting
+        name (str): Name to be displayed in the meeting
         video (str): URL for video stream
         audio (str): URL for audio stream
         infrastructure (str): Infrastructure used for the meeting room
@@ -226,13 +226,13 @@ def get_command(cwd: str, config: str, location: str, id: str, video: str,
         str: Command for starting the cam integration
     """
     if config == stream_config.video_and_audio:
-        return f"python3 {cwd}/cam_integration.py {location} {id} "\
+        return f"python3 {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video} --audio {audio}"
     elif config == stream_config.video_only:
-        return f"python3 {cwd}/cam_integration.py {location} {id} "\
+        return f"python3 {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video}"
     else:
-        return f"python3 {cwd}/cam_integration.py {location} {id} "\
+        return f"python3 {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --audio {audio}"
 
 
