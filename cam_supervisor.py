@@ -124,10 +124,7 @@ def check_entry(entry: dict) -> bool:
     if TESTING and not active_process:
         now_ts = start_ts + 10  # ensure that time is in bounds on first entry
 
-    if start_ts < now_ts and now_ts < stop_ts:
-        return True
-    else:
-        return False
+    return start_ts < now_ts < stop_ts
 
 
 def start_process(entry: dict) -> None:
