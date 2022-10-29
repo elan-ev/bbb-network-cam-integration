@@ -1,5 +1,11 @@
+"""
+Program for integrating audio/video into a meeting
+Handles only up to one audio and one video stream in one meeting
+"""
 import signal
 import threading
+from types import FrameType
+from typing import NoReturn, Optional
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -26,7 +32,13 @@ ffplay_pid = None
 ffmpeg_pid = None
 
 
-def exit_program():
+def exit_program() -> NoReturn:
+    """
+    Free all resources and exit the program
+
+    Returns:
+        NoReturn: Does not return, since the program exits
+    """
     logging.info("Exiting cam_integration!")
     global RUNNING
     RUNNING = False
@@ -46,15 +58,26 @@ def exit_program():
     sys.exit(0)
 
 
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: FrameType) -> None:
+    """
+    Gets called when SIGINT is sent to process, calls exit_program()
+
+    Args:
+        sig (int): Signal given to signal_handler, can only be SIGINT
+        frame (FrameType): Execution frame
+    """
     logging.info("Received SIGINT")
     exit_program()
 
 
-def create_loopback_device(device_number, camera_name):
+def create_loopback_device(device_number: int, camera_name: str) -> None:
     """
     Uses the v4l2loopback module to create a virtual camera device
     Removes previous v4l2loopback modules, as only one can be active at a time
+
+    Args:
+        device_number (int): video device numver of the virtual device
+        camera_name (str): name of the virtual camera
     """
     subprocess.run("sudo modprobe -r v4l2loopback", shell=True)
     time.sleep(1)
@@ -63,10 +86,17 @@ def create_loopback_device(device_number, camera_name):
     time.sleep(1)
 
 
-def manage_ffmpeg(video_stream, audio_stream, device_number):
+def manage_ffmpeg(
+        video_stream: str, audio_stream: str, device_number: int) -> None:
     """
-    Starts the ffmpeg proess to retrieve the rtsp stream
-    Monitors the cpu usage of the ffmpeg process and restarts it if needed
+    Starts the ffmpeg/ffplay proesses to retrieve the rtsp/audio stream
+    Monitors the cpu usage of the ffmpeg/ffplay processes
+    and restarts them if needed
+
+    Args:
+        video_stream (str): url of the video stream
+        audio_stream (str): url of the audio stream
+        device_number (int): video device number of the virtual device
     """
     global ffmpeg_pid
     global ffplay_pid
@@ -109,10 +139,18 @@ def manage_ffmpeg(video_stream, audio_stream, device_number):
                             "maybe already killed")
 
 
-def monitor_process(pid, threshold):
+def monitor_process(pid: int, threshold: float) -> bool:
     """
     Uses pidstat to monitor the current cpu usage of the process
     If it is under the threshold, False is returned
+
+    Args:
+        pid (int): pid of the process to be monitored
+        threshold (float): threshold for cpu usage
+
+    Returns:
+        bool: True, if the process cpu usage is above the threshold,
+              False otherwise
     """
     logging.debug(f"Monitoring {pid}!")
     monitoring_command = f"pidstat -p {pid} 3 1 | tail -1 | awk '{{print $8}}'"
@@ -132,10 +170,17 @@ def monitor_process(pid, threshold):
     return True
 
 
-def get_video_stream(stream_url, device_number):
+def get_video_stream(stream_url: str, device_number: int) -> int:
     """
     Uses ffmpeg to retrieve the rtsp stream and
     play it into the virtual camera device
+
+    Args:
+        stream_url (str): url of the video stream
+        device_number (int): video device number for the virtual camera
+
+    Returns:
+        int: pid of the created ffmpeg process
     """
     command = f"ffmpeg -loglevel error -rtsp_transport tcp -i {stream_url} -f"\
               f" v4l2 -vcodec rawvideo -pix_fmt yuv420p"\
@@ -166,10 +211,16 @@ def get_video_stream(stream_url, device_number):
     return ffmpeg_proc.pid
 
 
-def get_audio_stream(stream_url):
+def get_audio_stream(stream_url: str) -> int:
     """
     Uses ffplay to play the sound of the rtsp stream
     This sound should be picked up by the virtual mic
+
+    Args:
+        stream_url (str): url of the audio stream
+
+    Returns:
+        int: pid of the created ffplay process
     """
     command = f"ffplay -loglevel error -rtsp_transport"\
               f" tcp -nodisp {stream_url}"
@@ -182,7 +233,13 @@ def get_audio_stream(stream_url):
     return ffplay_proc.pid
 
 
-def create_virtual_mic(microphone_name):
+def create_virtual_mic(microphone_name: str) -> None:
+    """
+    Create virtual microphone for audio playback
+
+    Args:
+        microphone_name (str): name the virtual microphone should get
+    """
     subprocess.run("pactl unload-module module-remap-source", shell=True)
     subprocess.run("pactl unload-module module-null-sink", shell=True)
 
@@ -202,16 +259,27 @@ def create_virtual_mic(microphone_name):
     logging.info(f"module-remap-source: {module_remap_source_output.stdout}")
 
 
-def wait_for(element, timeout=10):
-    """Waits for an element to be located and clickable."""
+def wait_for(element: tuple, timeout: int = 10) -> None:
+    """
+    Wait until given element is present and clickable
+
+    Args:
+        element (tuple): element to be waited for
+        timeout (int, optional): maximum time to wait. Defaults to 10.
+    """
     WebDriverWait(driver, timeout).until(
             expected_conditions.presence_of_element_located(element))
     WebDriverWait(driver, timeout).until(expected_conditions
                                          .element_to_be_clickable(element))
 
 
-def click_button_xpath(button_xpath):
-    """Clicks button given by the xpath of the button."""
+def click_button_xpath(button_xpath: str) -> None:
+    """
+    Clicks button given by the xpath of the button.
+
+    Args:
+        button_xpath (str): xpath of the button to be clicked
+    """
     try:
         # wait for button to be clickable and the cllick it
         wait_for((By.XPATH, button_xpath))
@@ -224,8 +292,14 @@ def click_button_xpath(button_xpath):
         exit(-1)
 
 
-def fill_input_xpath(input_xpath, input):
-    """Fills the input field given by its xpath with input."""
+def fill_input_xpath(input_xpath: str, input: str) -> None:
+    """
+    Fills the input field given by its xpath with input.
+
+    Args:
+        input_xpath (str): xpath of the input field
+        input (str): text to be input into the field
+    """
     try:
         # wait for input field to be available and the fill it with the input
         wait_for((By.XPATH, input_xpath))
@@ -237,24 +311,49 @@ def fill_input_xpath(input_xpath, input):
         exit(-1)
 
 
-def select_option(select_xpath, option_text):
+def select_option(select_xpath: str, option_text: str) -> None:
     """
     Selects option given by option_text in dropdown menu given by its xpath
+
+    Args:
+        select_xpath (str): xpath of the dropdown menu
+        option_text (str): text of the option to be selected
     """
     wait_for((By.XPATH, select_xpath))
     select = Select(driver.find_element(by=By.XPATH, value=select_xpath))
     select.select_by_visible_text(option_text)
 
 
-def select_last_option(select_xpath):
-    """Selects last option in dropdown menu given by its xpath"""
+def select_last_option(select_xpath: str) -> None:
+    """
+    Selects last option in dropdown menu given by its xpath
+
+    Args:
+        select_xpath (str): xpath of the dropdown menu
+    """
     wait_for((By.XPATH, select_xpath))
     select = Select(driver.find_element(by=By.XPATH, value=select_xpath))
     num_options = len(select.options)
     select.select_by_index(num_options - 1)
 
 
-def integrate_camera(room_url, id, infrastructure, video_stream, audio_stream):
+def integrate_camera(
+        room_url: str, id: str, infrastructure: str,
+        video_stream: str, audio_stream: str) -> NoReturn:
+    """
+    Integrate video and/or audio into a meeting
+
+    Args:
+        room_url (str): url of the meeting
+        id (str): name to be displayed as participant
+        infrastructure (str): type of infrastructure used for the meeting room
+        video_stream (str): url of the video stream (can be None)
+        audio_stream (str): url of the audio stream (can be None)
+
+    Returns:
+        NoReturn: Does not return, but stays in the function
+    """
+
     logging.debug(f"video stream: {video_stream}")
     logging.debug(f"audio stream: {audio_stream}")
     # create and initialize audio resources

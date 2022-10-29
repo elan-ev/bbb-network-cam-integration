@@ -1,3 +1,7 @@
+"""
+Load config yaml for the system, start and monitor cam_integration,
+when a stream is scheduled
+"""
 import os
 import signal
 import requests
@@ -8,17 +12,29 @@ import subprocess
 import shlex
 import sys
 import logging
+from typing import NoReturn, Optional
+from types import FrameType
+from enum import Enum
 
 hostname = "bbb-cam.vm.elan.codes"
 active_process = None
 TESTING = True
 
 
-class stream_config:
+class stream_config(Enum):
+    """
+    Enum class for the stream config, indicating whether video/audio is used
+    """
     video_and_audio, video_only, audio_only = range(3)
 
 
-def exit_program():
+def exit_program() -> NoReturn:
+    """
+    Free all resources and exit the program
+
+    Returns:
+        NoReturn: Does not return, since the program exits
+    """
     logging.error("Exiting cam_supervisor!")
     if active_process:
         try:
@@ -29,11 +45,29 @@ def exit_program():
     sys.exit(0)
 
 
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: FrameType) -> None:
+    """
+    Gets called when SIGINT is sent to process, calls exit_program()
+
+    Args:
+        sig (int): Signal given to signal_handler, can only be SIGINT
+        frame (FrameType): Execution frame
+    """
+    logging.info("Received SIGINT")
     exit_program()
 
 
-def get_yaml(address, auth):
+def get_yaml(address: str, auth: tuple) -> dict:
+    """
+    Get the config yaml for the stream system
+
+    Args:
+        address (str): Address to retrieve the yaml
+        auth (tuple): Username and password in a tuple for basic auth
+
+    Returns:
+        dict: configuration yaml for the stream system
+    """
     r = requests.get(address, auth=auth)
 
     if r.status_code == 200:
@@ -44,19 +78,45 @@ def get_yaml(address, auth):
         return None
 
 
-def get_schedule(yml):
+def get_schedule(yml: dict) -> dict:
+    """
+    Return schedule for the current system
+
+    Args:
+        yml (dict): configuration yaml for the stream system
+
+    Returns:
+        dict: Schedule entry for the current machine
+    """
     return yml["clients"][hostname]["schedule"]
 
 
-def check_schedule(schedule):
-    """Returns schedule entry that should be active, or None if none exist"""
+def check_schedule(schedule: dict) -> dict:
+    """
+    Check, if there is an entry in the schedule that should be active
+
+    Args:
+        schedule (dict): Schedule for streams (from the config yaml)
+
+    Returns:
+        dict: Entry that should be active, or None if no entry should be active
+    """
     for entry in schedule:
         if check_entry(entry):
             return entry
     return None
 
 
-def check_entry(entry):
+def check_entry(entry: dict) -> bool:
+    """
+    Check whether given entry should be active
+
+    Args:
+        entry (dict): Schedule entry in the config yaml
+
+    Returns:
+        bool: True, if entry should be active, False otherwise
+    """
     start_ts = parse(entry["start"]).timestamp()
     stop_ts = parse(entry["stop"]).timestamp()
     now_ts = time.time()
@@ -70,7 +130,13 @@ def check_entry(entry):
         return False
 
 
-def start_process(entry):
+def start_process(entry: dict) -> None:
+    """
+    Start the process for cam integration
+
+    Args:
+        entry (dict): Configuration to be used for the stream
+    """
     location = entry["location"]
     id = entry["id"]
     video = entry["video"]
@@ -81,9 +147,9 @@ def start_process(entry):
 
     # just test
     if TESTING:
-        location = "https://studip.uni-osnabrueck.de/plugins.php/meetingplugin/"\
-                "room/index/537f5cd0bb94922d836f2a784d34eda9/d9b4fba817373f7"\
-                "17b3063b42961ec72?cancel_login=1"
+        location = "https://studip.uni-osnabrueck.de/plugins.php/"\
+                "meetingplugin/room/index/537f5cd0bb94922d836f2a784d34eda9/"\
+                "d9b4fba817373f717b3063b42961ec72?cancel_login=1"
         # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
         id = "42/201"
         # video = "rtsp://rtsp.stream/pattern"
@@ -101,10 +167,16 @@ def start_process(entry):
     active_process = (entry, proc)
 
 
-def get_infrastructure(yml, room_url):
+def get_infrastructure(yml: dict, room_url: str) -> str:
     """
     Returns type of infrastructure that is used for the room
-    (returns'studip' or 'greenlight')
+
+    Args:
+        yml (dict): configuration yaml for the stream system
+        room_url (str): url of a meeting room
+
+    Returns:
+        str: Can currently be "greenlight" or "studip"
     """
     types = yml["infrastructure"]
     for prefix, infrastructure in types.items():
@@ -115,7 +187,16 @@ def get_infrastructure(yml, room_url):
     exit_program()
 
 
-def get_stream_config(entry):
+def get_stream_config(entry: dict) -> stream_config:
+    """
+    Get stream config describing whether video/audio streams are provided
+
+    Args:
+        entry (dict): Entry in the yaml describing the stream parameters
+
+    Returns:
+        stream_config: The stream config for the entry
+    """
     if entry["audio"] and entry["video"]:
         return stream_config.video_and_audio
     elif entry["video"]:
@@ -127,7 +208,23 @@ def get_stream_config(entry):
         exit_program()
 
 
-def get_command(cwd, config, location, id, video, audio, infrastructure):
+def get_command(cwd: str, config: str, location: str, id: str, video: str,
+                audio: str, infrastructure: str) -> str:
+    """
+    Construct command for starting cam integration
+
+    Args:
+        cwd (str): Current working directory
+        config (stream_config): Describes whether audio/video should be used
+        location (str): URL of the meeting room
+        id (str): Name to be displayed in the meeting
+        video (str): URL for video stream
+        audio (str): URL for audio stream
+        infrastructure (str): Infrastructure used for the meeting room
+
+    Returns:
+        str: Command for starting the cam integration
+    """
     if config == stream_config.video_and_audio:
         return f"python3 {cwd}/cam_integration.py {location} {id} "\
                   f"{infrastructure} --video {video} --audio {audio}"
