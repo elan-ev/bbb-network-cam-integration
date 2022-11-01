@@ -12,7 +12,7 @@ import subprocess
 import shlex
 import sys
 import logging
-from typing import NoReturn, Optional
+from typing import NoReturn
 from types import FrameType
 from enum import Enum
 

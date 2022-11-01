@@ -5,7 +5,7 @@ Handles only up to one audio and one video stream in one meeting
 import signal
 import threading
 from types import FrameType
-from typing import NoReturn, Optional
+from typing import NoReturn
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
