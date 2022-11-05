@@ -338,14 +338,14 @@ def select_last_option(select_xpath: str) -> None:
 
 
 def integrate_camera(
-        room_url: str, id: str, infrastructure: str,
+        room_url: str, name: str, infrastructure: str,
         video_stream: str, audio_stream: str) -> NoReturn:
     """
     Integrate video and/or audio into a meeting
 
     Args:
         room_url (str): url of the meeting
-        id (str): name to be displayed as participant
+        name (str): name to be displayed as participant
         infrastructure (str): type of infrastructure used for the meeting room
         video_stream (str): url of the video stream (can be None)
         audio_stream (str): url of the audio stream (can be None)
@@ -389,7 +389,7 @@ def integrate_camera(
 
         # get field for entering the name of the user
         enterName_xpath = '//*[@placeholder="Enter your name!"]'
-        fill_input_xpath(enterName_xpath, id)
+        fill_input_xpath(enterName_xpath, name)
 
         time.sleep(1)
 
@@ -401,7 +401,7 @@ def integrate_camera(
 
     elif infrastructure == "studip":
         enterName_xpath = '//*[@name="name"]'
-        fill_input_xpath(enterName_xpath, id)
+        fill_input_xpath(enterName_xpath, name)
 
         time.sleep(1)
 
@@ -502,9 +502,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     room_url = args.room_url
-    id = args.id
+    name = args.id
     infrastructure = args.infrastructure
     audio_stream = args.audio
     video_stream = args.video
 
-    integrate_camera(room_url, id, infrastructure, video_stream, audio_stream)
+    integrate_camera(room_url, name, infrastructure, video_stream, audio_stream)
