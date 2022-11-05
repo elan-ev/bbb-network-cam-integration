@@ -475,12 +475,8 @@ def integrate_camera(
         micname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
         click_button_xpath(micname_xpath)
 
-    while RUNNING:
+    while True:
         time.sleep(60)
-
-    driver.quit()
-    global RUNNING
-    RUNNING = False
 
 
 if __name__ == "__main__":
@@ -507,4 +503,5 @@ if __name__ == "__main__":
     audio_stream = args.audio
     video_stream = args.video
 
-    integrate_camera(room_url, name, infrastructure, video_stream, audio_stream)
+    integrate_camera(room_url, name, infrastructure,
+                     video_stream, audio_stream)
