@@ -18,7 +18,7 @@ from enum import Enum
 
 hostname = "bbb-cam.vm.elan.codes"
 active_process = None
-TESTING = True
+TESTING = False
 
 
 class stream_config(Enum):
@@ -35,7 +35,7 @@ def exit_program() -> NoReturn:
     Returns:
         NoReturn: Does not return, since the program exits
     """
-    logging.error("Exiting cam_supervisor!")
+    logging.info("Exiting cam_supervisor!")
     if active_process:
         try:
             os.kill(active_process[1].pid, signal.SIGINT)
@@ -235,7 +235,7 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, filename="cam_supervisor.log",
-                        filemode="w",
+                        filemode="a",
                         format="%(asctime)s - %(levelname)s - %(message)s")
 
     signal.signal(signal.SIGINT, signal_handler)

@@ -475,7 +475,8 @@ def integrate_camera(
         micname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
         click_button_xpath(micname_xpath)
 
-    time.sleep(100)
+    while RUNNING:
+        time.sleep(60)
 
     driver.quit()
     global RUNNING
@@ -484,7 +485,7 @@ def integrate_camera(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, filename="cam_integration.log",
-                        filemode="w",
+                        filemode="a",
                         format="%(asctime)s - %(levelname)s - %(message)s")
 
     signal.signal(signal.SIGINT, signal_handler)
