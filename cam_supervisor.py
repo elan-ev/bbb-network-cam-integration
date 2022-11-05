@@ -16,9 +16,11 @@ from typing import NoReturn
 from types import FrameType
 from enum import Enum
 
-hostname = "bbb-cam.vm.elan.codes"
-active_process = None
+YAML_ADDRESS = 'http://bbb-cam-config.vm.elan.codes/config.yml'
+YAML_AUTH = ('bbb-stream', 'bbb-stream')
+HOSTNAME = "bbb-cam.vm.elan.codes"
 TESTING = False
+active_process = None
 
 
 class stream_config(Enum):
@@ -88,7 +90,7 @@ def get_schedule(yml: dict) -> dict:
     Returns:
         dict: Schedule entry for the current machine
     """
-    return yml["clients"][hostname]["schedule"]
+    return yml["clients"][HOSTNAME]["schedule"]
 
 
 def check_schedule(schedule: dict) -> dict:
@@ -239,8 +241,6 @@ if __name__ == "__main__":
                         format="%(asctime)s - %(levelname)s - %(message)s")
 
     signal.signal(signal.SIGINT, signal_handler)
-    yaml_address = 'http://bbb-cam-config.vm.elan.codes/config.yml'
-    yaml_auth = ('bbb-stream', 'bbb-stream')
     active_process = None
 
     while True:
@@ -258,7 +258,7 @@ if __name__ == "__main__":
                 start_process(active_process[0])
 
         else:
-            if newYml := get_yaml(yaml_address, yaml_auth):
+            if newYml := get_yaml(YAML_ADDRESS, YAML_AUTH):
                 yml = newYml
             schedule = get_schedule(yml)
 

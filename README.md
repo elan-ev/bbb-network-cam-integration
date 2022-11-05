@@ -68,3 +68,9 @@ bbb-cam ALL=(ALL) NOPASSWD:ALL
 ```
 sudo reboot
 ```
+
+# Configuring and starting the system
+```
+Set the YAML_ADDRESS, YAML_AUTH and HOSTNAME in the cam_supervisor. Then, start the system by using
+python3 cam_supervisor.py
+```

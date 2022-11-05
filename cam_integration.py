@@ -25,8 +25,8 @@ import logging
 
 CAMERA_NAME = "virtual_camera"
 MIC_NAME = "virtual_mic"
-driver = None
 RUNNING = True
+driver = None
 CAMERA_READY = False
 ffplay_pid = None
 ffmpeg_pid = None
