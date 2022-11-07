@@ -5,7 +5,7 @@ Prototype to integrate network cameras in BigBlueButton
 
 ## Create VM
 
-Create new VM on `vm.elan.codes` with user `bbb-cam`. Add audio device (`ich9-intel-hda`, `SPICE`).
+Create new VM on `vm.elan.codes` with ISO `ubuntu-20.04.4-live-server-amd64.iso` and user `bbb-cam`.
 
 ## Clone repository
 
