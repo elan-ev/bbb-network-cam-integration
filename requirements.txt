@@ -1,5 +1,6 @@
-urllib3==1.22
-selenium
-webdriver-manager
-python-dateutil
 packaging
+python-dateutil
+pyyaml
+selenium
+urllib3
+webdriver-manager
