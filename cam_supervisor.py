@@ -16,9 +16,9 @@ from typing import NoReturn
 from types import FrameType
 from enum import Enum
 
-YAML_ADDRESS = 'http://bbb-cam-config.vm.elan.codes/config.yml'
-YAML_AUTH = ('bbb-stream', 'bbb-stream')
-HOSTNAME = "bbb-cam.vm.elan.codes"
+YAML_ADDRESS = "https://bbb-cam-config.example.com/config.yml"
+YAML_AUTH = ("your-user", "your-password")
+HOSTNAME = "bbb-cam.example.com"
 TESTING = False
 active_process = None
 
