@@ -74,7 +74,7 @@ def get_yaml(address: str, auth: tuple) -> dict:
 
     if r.status_code == 200:
         logging.info("Successfully retrieved config yaml!")
-        return yaml.load(r.text, Loader=yaml.CLoader)
+        return yaml.safe_load(r.text)
     else:
         logging.warning("Could not get config yaml!")
         return None
