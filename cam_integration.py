@@ -337,6 +337,32 @@ def select_last_option(select_xpath: str) -> None:
     select.select_by_index(num_options - 1)
 
 
+def checkMicrophoneMuted() -> bool:
+    """
+    Check if microphone is muted by inspecting the mute/unmute button
+
+    Returns:
+        bool: True, if microphone is muted, False otherwise
+    """
+    try:
+        unmuteButton_xpath = '//*[@aria-label="Unmute"]'
+        driver.find_element(by=By.XPATH, value=unmuteButton_xpath)
+        # Unmute button exists, therefore currrently muted
+        return True
+    except NoSuchElementException:
+        # Unmute button does not exist, therefore not muted
+        return False
+
+
+def unMuteMicrophone() -> None:
+    """
+    Unmute microphone if currently muted
+    """
+    if checkMicrophoneMuted():
+        unmuteButton_xpath = '//*[@aria-label="Unmute"]'
+        click_button_xpath(unmuteButton_xpath)
+
+
 def integrate_camera(
         room_url: str, name: str, infrastructure: str,
         video_stream: str, audio_stream: str, access_code: str) -> NoReturn:
@@ -484,7 +510,9 @@ def integrate_camera(
         click_button_xpath(micname_xpath)
 
     while True:
-        time.sleep(60)
+        time.sleep(5)
+        if audio_stream:
+            unMuteMicrophone()
 
 
 if __name__ == "__main__":
