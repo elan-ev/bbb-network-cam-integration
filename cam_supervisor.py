@@ -143,6 +143,7 @@ def start_process(entry: dict) -> None:
     cwd = os.getcwd()
     infrastructure = get_infrastructure(yml, location)
     config = get_stream_config(entry)
+    access_code = entry.get("access_code")
 
     # just test
     if TESTING:
@@ -157,10 +158,11 @@ def start_process(entry: dict) -> None:
         audio = "rtsp://131.173.172.32/mediainput/h264/stream_1"
         infrastructure = get_infrastructure(yml, location)
         config = stream_config.video_and_audio
+        access_code = None
     # just test
 
     command = get_command(cwd, config, location, name,
-                          video, audio, infrastructure)
+                          video, audio, infrastructure, access_code)
     proc = subprocess.Popen(shlex.split(command), shell=False)
     global active_process
     active_process = (entry, proc)
@@ -208,7 +210,7 @@ def get_stream_config(entry: dict) -> stream_config:
 
 
 def get_command(cwd: str, config: str, location: str, name: str, video: str,
-                audio: str, infrastructure: str) -> str:
+                audio: str, infrastructure: str, access_code: str) -> str:
     """
     Construct command for starting cam integration
 
@@ -220,19 +222,25 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
         video (str): URL for video stream
         audio (str): URL for audio stream
         infrastructure (str): Infrastructure used for the meeting room
+        access_code (str): Access code for joining as moderator
 
     Returns:
         str: Command for starting the cam integration
     """
     if config == stream_config.video_and_audio:
-        return f"python3 {cwd}/cam_integration.py {location} {name} "\
+        command = f"python3 {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video} --audio {audio}"
     elif config == stream_config.video_only:
-        return f"python3 {cwd}/cam_integration.py {location} {name} "\
+        command = f"python3 {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video}"
     else:
-        return f"python3 {cwd}/cam_integration.py {location} {name} "\
+        command = f"python3 {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --audio {audio}"
+
+    if access_code:
+        command += f" --code {access_code}"
+
+    return command
 
 
 if __name__ == "__main__":

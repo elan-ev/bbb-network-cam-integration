@@ -339,7 +339,7 @@ def select_last_option(select_xpath: str) -> None:
 
 def integrate_camera(
         room_url: str, name: str, infrastructure: str,
-        video_stream: str, audio_stream: str) -> NoReturn:
+        video_stream: str, audio_stream: str, access_code: str) -> NoReturn:
     """
     Integrate video and/or audio into a meeting
 
@@ -349,6 +349,7 @@ def integrate_camera(
         infrastructure (str): type of infrastructure used for the meeting room
         video_stream (str): url of the video stream (can be None)
         audio_stream (str): url of the audio stream (can be None)
+        access_code (str): access code for access as moderator (can be None)
 
     Returns:
         NoReturn: Does not return, but stays in the function
@@ -404,6 +405,13 @@ def integrate_camera(
         fill_input_xpath(enterName_xpath, name)
 
         time.sleep(1)
+
+        if access_code:
+            # get field for entering access code
+            accessCode_xpath = '//*[@name="password"]'
+            logging.info(f"Access code: {access_code}")
+            fill_input_xpath(accessCode_xpath, access_code)
+            time.sleep(1)
 
         # click the join button to join the meeting
         joinRoom_xpath = '//*[@name="accept"]'
@@ -494,6 +502,7 @@ if __name__ == "__main__":
                         help="Infrastructure used for the meeting room")
     parser.add_argument("--audio", help="URL of the audio stream")
     parser.add_argument("--video", help="URL of the video stream")
+    parser.add_argument("--code", help="Access code for joining as moderator")
 
     args = parser.parse_args()
 
@@ -502,6 +511,7 @@ if __name__ == "__main__":
     infrastructure = args.infrastructure
     audio_stream = args.audio
     video_stream = args.video
+    access_code = args.code
 
     integrate_camera(room_url, name, infrastructure,
-                     video_stream, audio_stream)
+                     video_stream, audio_stream, access_code)
