@@ -1,0 +1,5 @@
+---
+schedule_url: "https://bbb-cam-config.example.com/config.yml"
+schedule_basic_auth_user: ""
+schedule_basic_auth_password: ""
+schedule_instance_key: ""
