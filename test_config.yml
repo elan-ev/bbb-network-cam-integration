@@ -1,0 +1,36 @@
+---
+clients:
+  # Instance 1, needs to be the same as 'HOSTNAME' in service config below
+  bbb-cam01.example.com:
+    schedule:
+      - audio: "rtsp://camera1.exmple.de/stream"
+        id: camera1
+        location: "<YOUR-STUDIP-MEETING-LINK>"
+        start: "2022-12-1T15:00:00+0100"
+        stop: 2022-12-1T16:00:00+0100
+        video: "rtsp://camera1.exmple.de/stream"
+      - audio: "rtsp://camera1.exmple.de/stream"
+        id: camera1
+        location: "<YOUR-GREENLIGHT-MEETING-LINK>"
+        start: "2022-1-31T15:00:00+0100"
+        stop: 2022-1-31T16:00:00+0100
+        video: "rtsp://camera1.exmple.de/stream"
+  # Instance 2, needs to be the same as 'HOSTNAME' in service config below
+  bbb-cam02.example.com:
+    schedule:
+      - audio: ""  # no audio stream
+        id: camera2-without-audio
+        location: "<YOUR-STUDIP-MEETING-LINK>"
+        start: 2022-11-9T14:30:00+0100
+        stop: 2022-11-9T16:00:00+0100
+        video: "rtsp://camera2.exmple.de/stream"
+      - audio: "rtsp://camera3.exmple.de/stream"
+        id: camera3-with-audio
+        location: "<YOUR-GREENLIGHT-MEETING-LINK>"
+        start: 2022-11-9T14:30:00+0100
+        stop: 2022-11-9T16:00:00+0100
+        video: "rtsp://camera3.exmple.de/stream"
+
+infrastructure:
+  greenlight.example.de: greenlight
+  studip.example.de: studip

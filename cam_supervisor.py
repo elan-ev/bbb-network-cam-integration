@@ -2,6 +2,7 @@
 Load config yaml for the system, start and monitor cam_integration,
 when a stream is scheduled
 """
+import argparse
 import os
 import signal
 import requests
@@ -16,10 +17,7 @@ from typing import NoReturn
 from types import FrameType
 from enum import Enum
 
-YAML_ADDRESS = "https://bbb-cam-config.example.com/config.yml"
-YAML_AUTH = ("your-user", "your-password")
-HOSTNAME = "bbb-cam.example.com"
-TESTING = False
+CONFIGURATION = None
 active_process = None
 
 
@@ -59,7 +57,7 @@ def signal_handler(sig: int, frame: FrameType) -> None:
     exit_program()
 
 
-def get_yaml(address: str, auth: tuple) -> dict:
+def get_yaml() -> dict:
     """
     Get the config yaml for the stream system
 
@@ -70,7 +68,18 @@ def get_yaml(address: str, auth: tuple) -> dict:
     Returns:
         dict: configuration yaml for the stream system
     """
-    r = requests.get(address, auth=auth)
+
+    if CONFIGURATION.get("test_schedules"):
+        logging.info("Loading schedules from test configuration.")
+        with open(CONFIGURATION["test_schedules"], "r") as f:
+            test_schedule = yaml.safe_load(f)
+        return test_schedule
+
+    r = requests.get(
+        CONFIGURATION["schedule_url"],
+        auth=(CONFIGURATION["schedule_basic_auth_user"],
+              CONFIGURATION["schedule_basic_auth_password"])
+    )
 
     if r.status_code == 200:
         logging.info("Successfully retrieved config yaml!")
@@ -80,7 +89,7 @@ def get_yaml(address: str, auth: tuple) -> dict:
         return None
 
 
-def get_schedule(yml: dict) -> dict:
+def get_schedule(yml: dict, instance_key: str) -> dict:
     """
     Return schedule for the current system
 
@@ -90,7 +99,7 @@ def get_schedule(yml: dict) -> dict:
     Returns:
         dict: Schedule entry for the current machine
     """
-    return yml["clients"][HOSTNAME]["schedule"]
+    return yml["clients"][instance_key]["schedule"]
 
 
 def check_schedule(schedule: dict) -> dict:
@@ -123,7 +132,7 @@ def check_entry(entry: dict) -> bool:
     stop_ts = parse(entry["stop"]).timestamp()
     now_ts = time.time()
 
-    if TESTING and not active_process:
+    if CONFIGURATION.get("test_schedules") and not active_process:
         now_ts = start_ts + 10  # ensure that time is in bounds on first entry
 
     return start_ts < now_ts < stop_ts
@@ -144,22 +153,6 @@ def start_process(entry: dict) -> None:
     infrastructure = get_infrastructure(yml, location)
     config = get_stream_config(entry)
     access_code = entry.get("access_code")
-
-    # just test
-    if TESTING:
-        location = "https://studip.uni-osnabrueck.de/plugins.php/"\
-                "meetingplugin/room/index/537f5cd0bb94922d836f2a784d34eda9/"\
-                "d9b4fba817373f717b3063b42961ec72?cancel_login=1"
-        # location = "https://bbb.elan-ev.de/b/art-gli-xx9-d2d"
-        name = "42/201"
-        # video = "rtsp://rtsp.stream/pattern"
-        # audio = "rtsp://rtsp.stream/pattern"
-        video = "rtsp://131.173.172.32/mediainput/h264/stream_1"
-        audio = "rtsp://131.173.172.32/mediainput/h264/stream_1"
-        infrastructure = get_infrastructure(yml, location)
-        config = stream_config.video_and_audio
-        access_code = None
-    # just test
 
     command = get_command(cwd, config, location, name,
                           video, audio, infrastructure, access_code)
@@ -249,8 +242,21 @@ if __name__ == "__main__":
                         format="%(asctime)s - %(levelname)s - %(message)s")
 
     signal.signal(signal.SIGINT, signal_handler)
-    active_process = None
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config", default="service_configuration.yml",
+                        type=str, help="path to the config file")
+    parser.add_argument("-t", "--test-schedules", dest="testing", type=str,
+                        help="path to a local file with test schedules")
+    args = parser.parse_args()
+
+    with open(args.config, 'r') as file:
+        CONFIGURATION = yaml.safe_load(file)
+
+    if args.testing:
+        CONFIGURATION["test_schedules"] = args.testing
+
+    active_process = None
     while True:
         if active_process:
             if not check_entry(active_process[0]):
@@ -264,11 +270,12 @@ if __name__ == "__main__":
             elif active_process[1].poll() is not None:
                 logging.error("Restarting active process!")
                 start_process(active_process[0])
-
         else:
-            if newYml := get_yaml(YAML_ADDRESS, YAML_AUTH):
+            if newYml := get_yaml():
                 yml = newYml
-            schedule = get_schedule(yml)
+            schedule = get_schedule(
+                yml, CONFIGURATION["schedule_instance_key"]
+            )
 
             if current_entry := check_schedule(schedule):
                 start_process(current_entry)
