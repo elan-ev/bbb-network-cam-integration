@@ -311,6 +311,19 @@ def fill_input_xpath(input_xpath: str, input: str) -> None:
         exit(-1)
 
 
+def select_option_by_value(select_xpath: str, option_value: str) -> None:
+    """
+    Selects option given by option_text in dropdown menu given by its xpath
+
+    Args:
+        select_xpath (str): xpath of the dropdown menu
+        option_value (str): value of the option to be selected
+    """
+    wait_for((By.XPATH, select_xpath))
+    select = Select(driver.find_element(by=By.XPATH, value=select_xpath))
+    select.select_by_value(option_value)
+
+
 def select_option(select_xpath: str, option_text: str) -> None:
     """
     Selects option given by option_text in dropdown menu given by its xpath
@@ -365,7 +378,8 @@ def unMuteMicrophone() -> None:
 
 def integrate_camera(
         room_url: str, name: str, infrastructure: str,
-        video_stream: str, audio_stream: str, access_code: str) -> NoReturn:
+        video_stream: str, audio_stream: str, access_code: str,
+        video_quality: str) -> NoReturn:
     """
     Integrate video and/or audio into a meeting
 
@@ -376,6 +390,7 @@ def integrate_camera(
         video_stream (str): url of the video stream (can be None)
         audio_stream (str): url of the audio stream (can be None)
         access_code (str): access code for access as moderator (can be None)
+        video_quality (str): Video quality to select for the stream
 
     Returns:
         NoReturn: Does not return, but stays in the function
@@ -490,9 +505,10 @@ def integrate_camera(
         # for now, dont take highest quality video,
         # since this makes the system more error-prone
         # #select video quality for sharing the camera
-        # selectQuality_xpath = '//*[@id="setQuality"]'
-        # select_last_option(selectQuality_xpath)
-        # time.sleep(3)
+        if video_quality:
+            selectQuality_xpath = '//*[@id="setQuality"]'
+            select_option_by_value(selectQuality_xpath, video_quality)
+            time.sleep(3)
 
         # start sharing the camera
         startSharing_xPath = '//*[@aria-label="Start sharing"]'
@@ -531,6 +547,8 @@ if __name__ == "__main__":
     parser.add_argument("--audio", help="URL of the audio stream")
     parser.add_argument("--video", help="URL of the video stream")
     parser.add_argument("--code", help="Access code for joining as moderator")
+    parser.add_argument("--video_quality",
+                        help="Video quality to select for the stream")
 
     args = parser.parse_args()
 
@@ -540,6 +558,7 @@ if __name__ == "__main__":
     audio_stream = args.audio
     video_stream = args.video
     access_code = args.code
+    video_quality = args.video_quality
 
     integrate_camera(room_url, name, infrastructure,
-                     video_stream, audio_stream, access_code)
+                     video_stream, audio_stream, access_code, video_quality)

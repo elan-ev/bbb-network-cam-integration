@@ -132,9 +132,6 @@ def check_entry(entry: dict) -> bool:
     stop_ts = parse(entry["stop"]).timestamp()
     now_ts = time.time()
 
-    if CONFIGURATION.get("test_schedules") and not active_process:
-        now_ts = start_ts + 10  # ensure that time is in bounds on first entry
-
     return start_ts < now_ts < stop_ts
 
 
@@ -153,9 +150,11 @@ def start_process(entry: dict) -> None:
     infrastructure = get_infrastructure(yml, location)
     config = get_stream_config(entry)
     access_code = entry.get("access_code")
+    video_quality = entry.get("video_quality")
 
     command = get_command(cwd, config, location, name,
-                          video, audio, infrastructure, access_code)
+                          video, audio, infrastructure, access_code,
+                          video_quality)
     proc = subprocess.Popen(shlex.split(command), shell=False)
     global active_process
     active_process = (entry, proc)
@@ -203,7 +202,8 @@ def get_stream_config(entry: dict) -> stream_config:
 
 
 def get_command(cwd: str, config: str, location: str, name: str, video: str,
-                audio: str, infrastructure: str, access_code: str) -> str:
+                audio: str, infrastructure: str, access_code: str,
+                video_quality: str) -> str:
     """
     Construct command for starting cam integration
 
@@ -216,13 +216,14 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
         audio (str): URL for audio stream
         infrastructure (str): Infrastructure used for the meeting room
         access_code (str): Access code for joining as moderator
+        video_quality (str): Video quality to select for the stream
 
     Returns:
         str: Command for starting the cam integration
     """
     if config == stream_config.video_and_audio:
         command = f"python3 {cwd}/cam_integration.py {location} {name} "\
-                  f"{infrastructure} --video {video} --audio {audio}"
+                  f"{infrastructure} --video {video} --audio {audio} "
     elif config == stream_config.video_only:
         command = f"python3 {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video}"
@@ -232,6 +233,8 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
 
     if access_code:
         command += f" --code {access_code}"
+    if video_quality:
+        command += f"--video_quality {video_quality}"
 
     return command
 
