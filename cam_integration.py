@@ -376,6 +376,53 @@ def unMuteMicrophone() -> None:
         click_button_xpath(unmuteButton_xpath)
 
 
+def get_moderator_chat_partner():
+    # list chat participants
+    userlist_xpath = '//*[@data-test="userListContent"]'
+    userlist = driver.find_element(by=By.XPATH, value=userlist_xpath)
+
+    chatlist_xpath = './/*[@role="tabpanel"]//*[@data-test="moderatorAvatar"]'
+    chat_partners = userlist.find_elements(by=By.XPATH, value=chatlist_xpath)
+
+    if chat_partners:
+        return chat_partners[0]
+
+    return None
+
+
+def get_last_chat_message():
+    messages_xpath = './/*[@data-test="chatUserMessageText"]'
+    messages = driver.find_elements(by=By.XPATH, value=messages_xpath)
+
+    # at least one message, as there would not be a chat otherwise
+    return messages[-1].text
+
+
+def close_chat():
+    close_chat_xpath = '//*[@data-test="closePrivateChat"]'
+    click_button_xpath(close_chat_xpath)
+
+
+def check_chats():
+    chat_partner = get_moderator_chat_partner()
+
+    if not chat_partner:
+        return
+
+    # open chat
+    chat_partner.click()
+    time.sleep(1)
+
+    message = get_last_chat_message()
+    execute_command(message)
+    close_chat()
+
+
+def execute_command(command):
+    # for now, only print the command
+    print(f"Command to be executed: {command}")
+
+
 def integrate_camera(
         room_url: str, name: str, infrastructure: str,
         video_stream: str, audio_stream: str, access_code: str,
@@ -526,9 +573,10 @@ def integrate_camera(
         click_button_xpath(micname_xpath)
 
     while True:
-        time.sleep(5)
+        check_chats()
         if audio_stream:
             unMuteMicrophone()
+        time.sleep(0.1)
 
 
 if __name__ == "__main__":
