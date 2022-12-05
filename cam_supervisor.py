@@ -19,6 +19,7 @@ from enum import Enum
 
 CONFIGURATION = None
 active_process = None
+PYTHON = "python3"
 
 
 class stream_config(Enum):
@@ -222,13 +223,13 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
         str: Command for starting the cam integration
     """
     if config == stream_config.video_and_audio:
-        command = f"python3 {cwd}/cam_integration.py {location} {name} "\
+        command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video} --audio {audio} "
     elif config == stream_config.video_only:
-        command = f"python3 {cwd}/cam_integration.py {location} {name} "\
+        command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video}"
     else:
-        command = f"python3 {cwd}/cam_integration.py {location} {name} "\
+        command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --audio {audio}"
 
     if access_code:
