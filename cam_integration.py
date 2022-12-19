@@ -30,6 +30,7 @@ driver = None
 CAMERA_READY = False
 ffplay_pid = None
 ffmpeg_pid = None
+MANUAL_MUTE = False
 
 
 def exit_program() -> NoReturn:
@@ -367,14 +368,32 @@ def checkMicrophoneMuted() -> bool:
         return False
 
 
+def mute_microphone() -> None:
+    """
+    Mute microphone if not currently muted
+    """
+
+    if not checkMicrophoneMuted():
+        mute_button_xpath = '//*[@aria-label="Mute"]'
+        click_button_xpath(mute_button_xpath)
+
+
 def unMuteMicrophone() -> None:
     """
     Unmute microphone if currently muted
     """
     if checkMicrophoneMuted():
-        unmuteButton_xpath = '//*[@aria-label="Unmute"]'
-        click_button_xpath(unmuteButton_xpath)
+        unmute_button_xpath = '//*[@aria-label="Unmute"]'
+        click_button_xpath(unmute_button_xpath)
 
+def toggle_microphone() -> None:
+    """
+    Mute microphone if unmuted, unmute microphone if muted
+    """
+    if checkMicrophoneMuted():
+        unMuteMicrophone()
+    else:
+        mute_microphone()
 
 def get_moderator_chat_partner():
     # list chat participants
@@ -421,6 +440,15 @@ def check_chats():
 def execute_command(command):
     # for now, only print the command
     print(f"Command to be executed: {command}")
+    global MANUAL_MUTE
+    if command == "/mute":
+        mute_microphone()
+    elif command == "/unmute":
+        MANUAL_MUTE = True
+        unMuteMicrophone()
+    elif command == "/togglemic":
+        MANUAL_MUTE = True
+        toggle_microphone()
 
 
 def integrate_camera(
@@ -574,7 +602,7 @@ def integrate_camera(
 
     while True:
         check_chats()
-        if audio_stream:
+        if audio_stream and not MANUAL_MUTE:
             unMuteMicrophone()
         time.sleep(0.1)
 
