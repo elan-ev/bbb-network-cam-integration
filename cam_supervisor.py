@@ -224,7 +224,7 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
     """
     if config == stream_config.video_and_audio:
         command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
-                  f"{infrastructure} --video {video} --audio {audio} "
+                  f"{infrastructure} --video {video} --audio {audio}"
     elif config == stream_config.video_only:
         command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
                   f"{infrastructure} --video {video}"
@@ -235,7 +235,7 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
     if access_code:
         command += f" --code {access_code}"
     if video_quality:
-        command += f"--video_quality {video_quality}"
+        command += f" --video_quality {video_quality}"
 
     return command
 
