@@ -13,6 +13,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions
 
 import sys
@@ -28,8 +29,8 @@ MIC_NAME = "virtual_mic"
 RUNNING = True
 driver = None
 CAMERA_READY = False
-ffplay_pid = None
-ffmpeg_pid = None
+ffplay_pid = 0
+ffmpeg_pid = 0
 MANUAL_MUTE = False
 
 
@@ -154,6 +155,12 @@ def monitor_process(pid: int, threshold: float) -> bool:
               False otherwise
     """
     logging.debug(f"Monitoring {pid}!")
+
+    if not pid:
+        # invalid pid
+        logging.info("Pid is invalid!")
+        return False
+
     monitoring_command = f"pidstat -p {pid} 3 1 | tail -1 | awk '{{print $8}}'"
     monitoring_result = subprocess.run(monitoring_command, shell=True,
                                        capture_output=True, text=True)
@@ -190,7 +197,7 @@ def get_video_stream(stream_url: str, device_number: int) -> int:
         ffmpeg_proc = subprocess.Popen(shlex.split(command),
                                        stdin=subprocess.PIPE, shell=False)
     else:
-        return None
+        return 0
 
     result = None
     while RUNNING:
@@ -228,7 +235,7 @@ def get_audio_stream(stream_url: str) -> int:
     if RUNNING:
         ffplay_proc = subprocess.Popen(shlex.split(command), shell=False)
     else:
-        return None
+        return 0
     logging.info(f"ffplay PID: {ffplay_proc.pid}")
 
     return ffplay_proc.pid
@@ -351,7 +358,7 @@ def select_last_option(select_xpath: str) -> None:
     select.select_by_index(num_options - 1)
 
 
-def checkMicrophoneMuted() -> bool:
+def check_microphone_muted() -> bool:
     """
     Check if microphone is muted by inspecting the mute/unmute button
 
@@ -359,8 +366,8 @@ def checkMicrophoneMuted() -> bool:
         bool: True, if microphone is muted, False otherwise
     """
     try:
-        unmuteButton_xpath = '//*[@aria-label="Unmute"]'
-        driver.find_element(by=By.XPATH, value=unmuteButton_xpath)
+        umute_button_xpath = '//*[@aria-label="Unmute"]'
+        driver.find_element(by=By.XPATH, value=umute_button_xpath)
         # Unmute button exists, therefore currrently muted
         return True
     except NoSuchElementException:
@@ -373,43 +380,59 @@ def mute_microphone() -> None:
     Mute microphone if not currently muted
     """
 
-    if not checkMicrophoneMuted():
+    if not check_microphone_muted():
         mute_button_xpath = '//*[@aria-label="Mute"]'
         click_button_xpath(mute_button_xpath)
 
 
-def unMuteMicrophone() -> None:
+def unmute_microphone() -> None:
     """
     Unmute microphone if currently muted
     """
-    if checkMicrophoneMuted():
+    if check_microphone_muted():
         unmute_button_xpath = '//*[@aria-label="Unmute"]'
         click_button_xpath(unmute_button_xpath)
+
 
 def toggle_microphone() -> None:
     """
     Mute microphone if unmuted, unmute microphone if muted
     """
-    if checkMicrophoneMuted():
-        unMuteMicrophone()
+    if check_microphone_muted():
+        unmute_microphone()
     else:
         mute_microphone()
 
-def get_moderator_chat_partner():
+
+def get_moderator_chat_partner() -> WebElement:
+    """
+    Get first moderator chat partner from list of chat partners
+
+    Returns:
+        WebElement: Element that opens private chat with moderator
+    """
     # list chat participants
     userlist_xpath = '//*[@data-test="userListContent"]'
     userlist = driver.find_element(by=By.XPATH, value=userlist_xpath)
 
     chatlist_xpath = './/*[@role="tabpanel"]//*[@data-test="moderatorAvatar"]'
-    chat_partners = userlist.find_elements(by=By.XPATH, value=chatlist_xpath)
 
-    if chat_partners:
+    if chat_partners := userlist.find_elements(
+        by=By.XPATH, value=chatlist_xpath
+    ):
+        print(type(chat_partners[0]))
         return chat_partners[0]
 
     return None
 
 
-def get_last_chat_message():
+def get_last_chat_message() -> str:
+    """
+    Get last chat message of current private chat
+
+    Returns:
+        str: Text in last message
+    """
     messages_xpath = './/*[@data-test="chatUserMessageText"]'
     messages = driver.find_elements(by=By.XPATH, value=messages_xpath)
 
@@ -417,12 +440,19 @@ def get_last_chat_message():
     return messages[-1].text
 
 
-def close_chat():
+def close_chat() -> None:
+    """
+    Close current private chat
+    """
     close_chat_xpath = '//*[@data-test="closePrivateChat"]'
     click_button_xpath(close_chat_xpath)
 
 
-def check_chats():
+def check_chats() -> None:
+    """
+    Check, whether there is a new message from a moderator and execute the
+    command in the message
+    """
     chat_partner = get_moderator_chat_partner()
 
     if not chat_partner:
@@ -437,7 +467,13 @@ def check_chats():
     close_chat()
 
 
-def execute_command(command):
+def execute_command(command: str) -> None:
+    """
+    Execute the given command
+
+    Args:
+        command (str): Command to execute
+    """
     # for now, only print the command
     print(f"Command to be executed: {command}")
     global MANUAL_MUTE
@@ -445,7 +481,7 @@ def execute_command(command):
         mute_microphone()
     elif command == "/unmute":
         MANUAL_MUTE = True
-        unMuteMicrophone()
+        unmute_microphone()
     elif command == "/togglemic":
         MANUAL_MUTE = True
         toggle_microphone()
@@ -505,33 +541,33 @@ def integrate_camera(
     if infrastructure == "greenlight":
 
         # get field for entering the name of the user
-        enterName_xpath = '//*[@placeholder="Enter your name!"]'
-        fill_input_xpath(enterName_xpath, name)
+        enter_name_xpath = '//*[@placeholder="Enter your name!"]'
+        fill_input_xpath(enter_name_xpath, name)
 
         time.sleep(1)
 
         # click the join button to join the meeting
-        joinRoom_xpath = '//*[@id="room-join"]'
-        click_button_xpath(joinRoom_xpath)
+        join_room_xpath = '//*[@id="room-join"]'
+        click_button_xpath(join_room_xpath)
 
         time.sleep(3)
 
     elif infrastructure == "studip":
-        enterName_xpath = '//*[@name="name"]'
-        fill_input_xpath(enterName_xpath, name)
+        enter_name_xpath = '//*[@name="name"]'
+        fill_input_xpath(enter_name_xpath, name)
 
         time.sleep(1)
 
         if access_code:
             # get field for entering access code
-            accessCode_xpath = '//*[@name="password"]'
+            access_code_xpath = '//*[@name="password"]'
             logging.info(f"Access code: {access_code}")
-            fill_input_xpath(accessCode_xpath, access_code)
+            fill_input_xpath(access_code_xpath, access_code)
             time.sleep(1)
 
         # click the join button to join the meeting
-        joinRoom_xpath = '//*[@name="accept"]'
-        click_button_xpath(joinRoom_xpath)
+        join_room_xpath = '//*[@name="accept"]'
+        click_button_xpath(join_room_xpath)
 
         time.sleep(3)
 
@@ -557,8 +593,8 @@ def integrate_camera(
         click_button_xpath(microphone_xpath)
     else:
         # go into listen only mode
-        listenOnly_xpath = '//*[@aria-label="Listen only"]'
-        click_button_xpath(listenOnly_xpath)
+        listen_only_xpath = '//*[@aria-label="Listen only"]'
+        click_button_xpath(listen_only_xpath)
 
     time.sleep(10)
 
@@ -568,32 +604,32 @@ def integrate_camera(
 
     # click the share camera button to open the sharing dialogue
     if video_stream:
-        shareCamera_xpath = '//*[@aria-label="Share webcam"]'
-        click_button_xpath(shareCamera_xpath)
+        share_camera_xpath = '//*[@aria-label="Share webcam"]'
+        click_button_xpath(share_camera_xpath)
         time.sleep(5)
 
         # select the virtual camera for sharing
-        selectCamera_xpath = '//*[@id="setCam"]'
-        select_option(selectCamera_xpath, CAMERA_NAME)
+        select_camera_xpath = '//*[@id="setCam"]'
+        select_option(select_camera_xpath, CAMERA_NAME)
         time.sleep(2)
 
         # for now, dont take highest quality video,
         # since this makes the system more error-prone
         # #select video quality for sharing the camera
         if video_quality:
-            selectQuality_xpath = '//*[@id="setQuality"]'
-            select_option_by_value(selectQuality_xpath, video_quality)
+            select_quality_xpath = '//*[@id="setQuality"]'
+            select_option_by_value(select_quality_xpath, video_quality)
             time.sleep(3)
 
         # start sharing the camera
-        startSharing_xPath = '//*[@aria-label="Start sharing"]'
-        click_button_xpath(startSharing_xPath)
+        start_sharing_xpath = '//*[@aria-label="Start sharing"]'
+        click_button_xpath(start_sharing_xpath)
         time.sleep(1)
 
     if audio_stream:
         # expand list for changing audio devices
-        changeAudioDevice_xpath = '//*[@aria-label="Change audio device"]'
-        click_button_xpath(changeAudioDevice_xpath)
+        change_audio_device_xpath = '//*[@aria-label="Change audio device"]'
+        click_button_xpath(change_audio_device_xpath)
         time.sleep(1)
 
         # choose virtual microphone by its given name
@@ -603,7 +639,7 @@ def integrate_camera(
     while True:
         check_chats()
         if audio_stream and not MANUAL_MUTE:
-            unMuteMicrophone()
+            unmute_microphone()
         time.sleep(0.1)
 
 

@@ -87,7 +87,7 @@ def get_yaml() -> dict:
         return yaml.safe_load(r.text)
     else:
         logging.warning("Could not get config yaml!")
-        return None
+        return {}
 
 
 def get_schedule(yml: dict, instance_key: str) -> dict:
@@ -116,7 +116,7 @@ def check_schedule(schedule: dict) -> dict:
     for entry in schedule:
         if check_entry(entry):
             return entry
-    return None
+    return {}
 
 
 def check_entry(entry: dict) -> bool:
