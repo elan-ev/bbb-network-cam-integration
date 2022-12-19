@@ -420,7 +420,6 @@ def get_moderator_chat_partner() -> WebElement:
     if chat_partners := userlist.find_elements(
         by=By.XPATH, value=chatlist_xpath
     ):
-        print(type(chat_partners[0]))
         return chat_partners[0]
 
     return None
@@ -474,8 +473,6 @@ def execute_command(command: str) -> None:
     Args:
         command (str): Command to execute
     """
-    # for now, only print the command
-    print(f"Command to be executed: {command}")
     global MANUAL_MUTE
     if command == "/mute":
         mute_microphone()
@@ -485,12 +482,73 @@ def execute_command(command: str) -> None:
     elif command == "/togglemic":
         MANUAL_MUTE = True
         toggle_microphone()
+    elif command == "/unshare_cam":
+        unshare_camera()
+    elif command == "/share_cam":
+        share_camera()
+
+
+def check_camera_shared() -> bool:
+    """
+    Check if camera is currently shared by inspecting the share camera button
+
+    Returns:
+        bool: True, if currently sharing camera
+    """
+    try:
+        unshare_button_xpath = '//*[@aria-label="Stop sharing webcam"]'
+        driver.find_element(by=By.XPATH, value=unshare_button_xpath)
+        # Stop sharing button exists, therefore currrently sharing camera
+        return True
+    except NoSuchElementException:
+        # Stop sharing button does not exist, therefore not sharing camera
+        return False
+
+
+def unshare_camera() -> None:
+    """
+    Disable camera sharing
+    """
+    if not check_camera_shared():
+        # not currently sharing camera
+        return
+
+    unshare_camera_xpath = '//*[@aria-label="Stop sharing webcam"]'
+    click_button_xpath(unshare_camera_xpath)
+
+
+def share_camera() -> None:
+    """
+    Share camera
+    """
+    if check_camera_shared():
+        # already sharing camera
+        return
+
+    share_camera_xpath = '//*[@aria-label="Share webcam"]'
+    click_button_xpath(share_camera_xpath)
+    time.sleep(5)
+
+    # select the virtual camera for sharing
+    select_camera_xpath = '//*[@id="setCam"]'
+    select_option(select_camera_xpath, CAMERA_NAME)
+    time.sleep(2)
+
+    # select video quality for sharing the camera
+    if VIDEO_QUALITY:
+        select_quality_xpath = '//*[@id="setQuality"]'
+        select_option_by_value(select_quality_xpath, VIDEO_QUALITY)
+        time.sleep(3)
+
+    # start sharing the camera
+    start_sharing_xpath = '//*[@aria-label="Start sharing"]'
+    click_button_xpath(start_sharing_xpath)
+    time.sleep(1)
 
 
 def integrate_camera(
         room_url: str, name: str, infrastructure: str,
-        video_stream: str, audio_stream: str, access_code: str,
-        video_quality: str) -> NoReturn:
+        video_stream: str, audio_stream: str, access_code: str) -> NoReturn:
     """
     Integrate video and/or audio into a meeting
 
@@ -501,7 +559,6 @@ def integrate_camera(
         video_stream (str): url of the video stream (can be None)
         audio_stream (str): url of the audio stream (can be None)
         access_code (str): access code for access as moderator (can be None)
-        video_quality (str): Video quality to select for the stream
 
     Returns:
         NoReturn: Does not return, but stays in the function
@@ -604,27 +661,7 @@ def integrate_camera(
 
     # click the share camera button to open the sharing dialogue
     if video_stream:
-        share_camera_xpath = '//*[@aria-label="Share webcam"]'
-        click_button_xpath(share_camera_xpath)
-        time.sleep(5)
-
-        # select the virtual camera for sharing
-        select_camera_xpath = '//*[@id="setCam"]'
-        select_option(select_camera_xpath, CAMERA_NAME)
-        time.sleep(2)
-
-        # for now, dont take highest quality video,
-        # since this makes the system more error-prone
-        # #select video quality for sharing the camera
-        if video_quality:
-            select_quality_xpath = '//*[@id="setQuality"]'
-            select_option_by_value(select_quality_xpath, video_quality)
-            time.sleep(3)
-
-        # start sharing the camera
-        start_sharing_xpath = '//*[@aria-label="Start sharing"]'
-        click_button_xpath(start_sharing_xpath)
-        time.sleep(1)
+        share_camera()
 
     if audio_stream:
         # expand list for changing audio devices
@@ -670,7 +707,8 @@ if __name__ == "__main__":
     audio_stream = args.audio
     video_stream = args.video
     access_code = args.code
-    video_quality = args.video_quality
+    global VIDEO_QUALITY
+    VIDEO_QUALITY = args.video_quality
 
     integrate_camera(room_url, name, infrastructure,
-                     video_stream, audio_stream, access_code, video_quality)
+                     video_stream, audio_stream, access_code)
