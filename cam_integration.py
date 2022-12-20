@@ -445,6 +445,7 @@ def close_chat() -> None:
     """
     close_chat_xpath = '//*[@data-test="closePrivateChat"]'
     click_button_xpath(close_chat_xpath)
+    time.sleep(0.5)
 
 
 def check_chats() -> None:
@@ -464,6 +465,34 @@ def check_chats() -> None:
     message = get_last_chat_message()
     execute_command(message)
     close_chat()
+
+
+def send_chat_message(message: str) -> None:
+    """
+    Send the given message to the current chat partner
+
+    Args:
+        message (str): Message to be sent
+    """
+    text_input_xpath = '//*[@id="message-input"]'
+    fill_input_xpath(text_input_xpath, message)
+    send_button_xpath = '//*[@aria-label="Send message"]'
+    click_button_xpath(send_button_xpath)
+
+
+def send_chat_help() -> None:
+    """
+    Send a help message to current chat partner
+    """
+    send_chat_message("Supported commands:")
+    send_chat_message("/mute: Mute the audio.")
+    send_chat_message("/unmute: Unmute the audio.")
+    send_chat_message("/togglemic: Toggle audio mute. Mute if not currently \
+                      muted, unmute if currently muted.")
+    send_chat_message("/unshare_cam: Disable video stream.")
+    send_chat_message("/share_cam: Enable video stream (If video stream \
+                      is provided).")
+    time.sleep(1)
 
 
 def execute_command(command: str) -> None:
@@ -486,6 +515,11 @@ def execute_command(command: str) -> None:
         unshare_camera()
     elif command == "/share_cam":
         share_camera()
+    elif command == "/help":
+        send_chat_help()
+    else:
+        print(command)
+        send_chat_help()
 
 
 def check_camera_shared() -> bool:
