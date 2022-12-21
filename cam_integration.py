@@ -504,6 +504,7 @@ def execute_command(command: str) -> None:
     """
     global MANUAL_MUTE
     if command == "/mute":
+        MANUAL_MUTE = True
         mute_microphone()
     elif command == "/unmute":
         MANUAL_MUTE = True
