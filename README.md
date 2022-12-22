@@ -32,6 +32,7 @@ sudo make install
 # load
 sudo depmod -a
 ```
+After rebooting the system, it might be necessary to repeat the last three steps.
 
 _See also the [v4l2loopback documentation](https://github.com/umlaeute/v4l2loopback)_
 
