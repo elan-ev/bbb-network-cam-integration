@@ -498,6 +498,12 @@ def send_chat_help() -> None:
 
 
 def extend_meeting(minutes: int) -> None:
+    """
+    Extend the current meeting
+
+    Args:
+        minutes (int): Minutes to extend the meeting
+    """
     global STOP_TIME
     max_minutes = int((MAX_STOP_TIME - STOP_TIME) // 60)
 
