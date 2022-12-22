@@ -487,12 +487,29 @@ def send_chat_help() -> None:
     send_chat_message("Supported commands:")
     send_chat_message("/mute: Mute the audio.")
     send_chat_message("/unmute: Unmute the audio.")
-    send_chat_message("/togglemic: Toggle audio mute. Mute if not currently \
-                      muted, unmute if currently muted.")
+    send_chat_message("/togglemic: Toggle audio mute. Mute if not currently "
+                      "muted, unmute if currently muted.")
     send_chat_message("/unshare_cam: Disable video stream.")
-    send_chat_message("/share_cam: Enable video stream (If video stream \
-                      is provided).")
+    send_chat_message("/share_cam: Enable video stream (If video stream "
+                      "is provided).")
+    send_chat_message("/extend_meeting <minutes>: "
+                      "Extend meeting by <minutes> minutes.")
     time.sleep(1)
+
+
+def extend_meeting(minutes: int) -> None:
+    global STOP_TIME
+    max_minutes = int((MAX_STOP_TIME - STOP_TIME) // 60)
+
+    if minutes <= max_minutes:
+        STOP_TIME += minutes * 60
+        send_chat_message(f"Meeting will be extended by {minutes} minutes!")
+    else:
+
+        send_chat_message("Meeting cannot be extended because of overlaps in "
+                          "the schedule! Maximum extension is "
+                          f"{max_minutes} minutes!")
+        time.sleep(0.5)
 
 
 def execute_command(command: str) -> None:
@@ -518,8 +535,15 @@ def execute_command(command: str) -> None:
         share_camera()
     elif command == "/help":
         send_chat_help()
+    elif "/extend_meeting" in command:
+        try:
+            minutes = int(command[16:])
+            extend_meeting(minutes)
+        except ValueError:
+            send_chat_message("Please provide a valid number of minutes after "
+                              "the command.")
+            time.sleep(0.5)
     else:
-        print(command)
         send_chat_help()
 
 
@@ -579,6 +603,11 @@ def share_camera() -> None:
     start_sharing_xpath = '//*[@aria-label="Start sharing"]'
     click_button_xpath(start_sharing_xpath)
     time.sleep(1)
+
+
+def check_stop_time() -> None:
+    if time.time() > STOP_TIME:
+        exit_program()
 
 
 def integrate_camera(
@@ -709,6 +738,7 @@ def integrate_camera(
         click_button_xpath(micname_xpath)
 
     while True:
+        check_stop_time()
         check_chats()
         if audio_stream and not MANUAL_MUTE:
             unmute_microphone()
@@ -728,6 +758,10 @@ if __name__ == "__main__":
     parser.add_argument("id", help="Name to be displayed in the meeting")
     parser.add_argument("infrastructure",
                         help="Infrastructure used for the meeting room")
+    parser.add_argument("regular_stop_time", type=float,
+                        help=" Regular time for process to end")
+    parser.add_argument("max_stop_time", type=float,
+                        help="Latest allowed time for process to end")
     parser.add_argument("--audio", help="URL of the audio stream")
     parser.add_argument("--video", help="URL of the video stream")
     parser.add_argument("--code", help="Access code for joining as moderator")
@@ -744,6 +778,14 @@ if __name__ == "__main__":
     access_code = args.code
     global VIDEO_QUALITY
     VIDEO_QUALITY = args.video_quality
+
+    regular_stop_time = args.regular_stop_time
+    max_stop_time = args.max_stop_time
+
+    global STOP_TIME
+    STOP_TIME = regular_stop_time
+    global MAX_STOP_TIME
+    MAX_STOP_TIME = max_stop_time
 
     integrate_camera(room_url, name, infrastructure,
                      video_stream, audio_stream, access_code)

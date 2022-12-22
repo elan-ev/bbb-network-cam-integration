@@ -136,17 +136,33 @@ def check_entry(entry: dict) -> bool:
     return start_ts < now_ts < stop_ts
 
 
-def start_process(entry: dict) -> None:
+def get_max_stop_time(schedule: dict, entry: dict) -> float:
+    stop_time = parse(entry["stop"]).timestamp()
+    max_stop_time = sys.maxsize
+
+    for cur_entry in schedule:
+        cur_ts = parse(cur_entry["start"]).timestamp()
+        if cur_ts > stop_time and cur_ts < max_stop_time:
+            max_stop_time = cur_ts
+
+    return max_stop_time
+
+
+def start_process(schedule: dict, entry: dict) -> None:
     """
     Start the process for cam integration
 
     Args:
+        schedule (dict): Stream schedule for this machine
         entry (dict): Configuration to be used for the stream
     """
     location = entry["location"]
     name = entry["id"]
     video = entry["video"]
     audio = entry["audio"]
+    regular_stop_time = parse(entry["stop"]).timestamp()
+    max_stop_time = get_max_stop_time(schedule, entry)
+
     cwd = os.getcwd()
     infrastructure = get_infrastructure(yml, location)
     config = get_stream_config(entry)
@@ -155,7 +171,7 @@ def start_process(entry: dict) -> None:
 
     command = get_command(cwd, config, location, name,
                           video, audio, infrastructure, access_code,
-                          video_quality)
+                          video_quality, regular_stop_time, max_stop_time)
     proc = subprocess.Popen(shlex.split(command), shell=False)
     global active_process
     active_process = (entry, proc)
@@ -204,7 +220,8 @@ def get_stream_config(entry: dict) -> stream_config:
 
 def get_command(cwd: str, config: str, location: str, name: str, video: str,
                 audio: str, infrastructure: str, access_code: str,
-                video_quality: str) -> str:
+                video_quality: str, regular_stop_time: int,
+                max_stop_time: int) -> str:
     """
     Construct command for starting cam integration
 
@@ -222,15 +239,15 @@ def get_command(cwd: str, config: str, location: str, name: str, video: str,
     Returns:
         str: Command for starting the cam integration
     """
+    command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
+              f"{infrastructure} {regular_stop_time} {max_stop_time}"
+
     if config == stream_config.video_and_audio:
-        command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
-                  f"{infrastructure} --video {video} --audio {audio}"
+        command += f" --video {video} --audio {audio}"
     elif config == stream_config.video_only:
-        command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
-                  f"{infrastructure} --video {video}"
+        command += f" --video {video}"
     else:
-        command = f"{PYTHON} {cwd}/cam_integration.py {location} {name} "\
-                  f"{infrastructure} --audio {audio}"
+        command += f" --audio {audio}"
 
     if access_code:
         command += f" --code {access_code}"
@@ -273,7 +290,12 @@ if __name__ == "__main__":
                 active_process = None
             elif active_process[1].poll() is not None:
                 logging.error("Restarting active process!")
-                start_process(active_process[0])
+                if newYml := get_yaml():
+                    yml = newYml
+                schedule = get_schedule(
+                    yml, CONFIGURATION["schedule_instance_key"]
+                )
+                start_process(schedule, active_process[0])
         else:
             if newYml := get_yaml():
                 yml = newYml
@@ -282,6 +304,6 @@ if __name__ == "__main__":
             )
 
             if current_entry := check_schedule(schedule):
-                start_process(current_entry)
+                start_process(schedule, current_entry)
 
         time.sleep(60)
