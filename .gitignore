@@ -14,3 +14,4 @@ venv/
 # Editor
 .vscode
 *.swp
+.idea

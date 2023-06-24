@@ -4,3 +4,4 @@ pyyaml
 selenium
 urllib3
 webdriver-manager
+psutil
