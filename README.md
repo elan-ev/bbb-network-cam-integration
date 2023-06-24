@@ -132,18 +132,19 @@ infrastructure:
 
 You need to set the following variables in `service_configuration.yml`:
 
-variable | example value | description
----|---|---
-`schedule_url` | `"https://bbb-cam-config.example.com/config.yml"` | the url of the config file
-`schedule_basic_auth_user` | `"your-user"` | the user for the credentials for the basic auth of the config location
-`schedule_basic_auth_password` | `"your-password"` | the password for the credentials for the basic auth of the config location
-`schedule_instance_key` | `"bbb-cam.example.com"` | the name of the current instance, needed to look up the scheduled streams
+| variable                       | example value                                     | description                                                                |
+|--------------------------------|---------------------------------------------------|----------------------------------------------------------------------------|
+| `schedule_url`                 | `"https://bbb-cam-config.example.com/config.yml"` | the url of the config file                                                 |
+| `schedule_basic_auth_user`     | `"your-user"`                                     | the user for the credentials for the basic auth of the config location     |
+| `schedule_basic_auth_password` | `"your-password"`                                 | the password for the credentials for the basic auth of the config location |
+| `schedule_instance_key`        | `"bbb-cam.example.com"`                           | the name of the current instance, needed to look up the scheduled streams  |
 
 Then start the system by running (from inside the virtual environment):
 
 ```
-python3 cam_supervisor.py
+python3 cam_integration.py
 ```
 
 You can also specify the location of the config file with the `--config` command line option
-and the path of a local schedule config for testing with the `--test-schedules` option.
+and the path of a local schedule config for testing with the `--test-schedule` option.
+All supported options can be found with the `-h` option.

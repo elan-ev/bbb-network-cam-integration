@@ -2,15 +2,23 @@
 Program for integrating audio/video into a meeting
 Handles only up to one audio and one video stream in one meeting
 """
+import re
 import signal
 import threading
 from types import FrameType
 from typing import NoReturn
+
+import psutil
+import requests
+import yaml
+from dateutil.parser import parse
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException,\
+    WebDriverException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.remote.webelement import WebElement
@@ -26,12 +34,17 @@ import logging
 
 CAMERA_NAME = "virtual_camera"
 MIC_NAME = "virtual_mic"
+MIC_SINK_NAME = "Virtual_Microphone_Sink"
 RUNNING = True
-driver = None
+driver: WebDriver | None = None
 CAMERA_READY = False
 ffplay_pid = 0
 ffmpeg_pid = 0
 MANUAL_MUTE = False
+MANUAL_VIDEO_UNSHARE = False
+
+CONFIGURATION = None
+current_schedule_slot: dict | None = None
 
 
 def exit_program() -> NoReturn:
@@ -56,7 +69,8 @@ def exit_program() -> NoReturn:
         except OSError:
             logging.warning("ffmpeg could not be killed, "
                             "maybe already killed")
-    driver.quit()
+    if driver:
+        driver.quit()
     sys.exit(0)
 
 
@@ -78,7 +92,7 @@ def create_loopback_device(device_number: int, camera_name: str) -> None:
     Removes previous v4l2loopback modules, as only one can be active at a time
 
     Args:
-        device_number (int): video device numver of the virtual device
+        device_number (int): video device number of the virtual device
         camera_name (str): name of the virtual camera
     """
     subprocess.run("sudo modprobe -r v4l2loopback", shell=True)
@@ -143,15 +157,13 @@ def manage_ffmpeg(
 
 def monitor_process(pid: int, threshold: float) -> bool:
     """
-    Uses pidstat to monitor the current cpu usage of the process
-    If it is under the threshold, False is returned
-
+    Checks if the process is running.
     Args:
         pid (int): pid of the process to be monitored
-        threshold (float): threshold for cpu usage
+        threshold (float): unused threshold for cpu usage
 
     Returns:
-        bool: True, if the process cpu usage is above the threshold,
+        bool: True, if the process exists and is running,
               False otherwise
     """
     logging.debug(f"Monitoring {pid}!")
@@ -161,19 +173,31 @@ def monitor_process(pid: int, threshold: float) -> bool:
         logging.info("Pid is invalid!")
         return False
 
-    monitoring_command = f"pidstat -p {pid} 3 1 | tail -1 | awk '{{print $8}}'"
-    monitoring_result = subprocess.run(monitoring_command, shell=True,
-                                       capture_output=True, text=True)
-
-    try:
-        cpu_usage = float(monitoring_result.stdout.replace(",", "."))
-    except ValueError:
+    if not psutil.pid_exists(pid):
+        # not existing pid
+        logging.error("Pid does not exists!")
         return False
-    logging.debug(cpu_usage)
 
-    if cpu_usage < threshold:
-        logging.error(f"There is a problem with process {pid}!")
+    process = psutil.Process(pid)
+    if not process.is_running():
+        logging.error(f"Process {pid} is not running!")
         return False
+
+    # TODO: Evaluate if cpu usage threshold is necessary
+    # monitoring_command = f"pidstat -p {pid} 3 1 |" \
+    #                      f" tail -1 | awk '{{print $8}}'"
+    # monitoring_result = subprocess.run(monitoring_command, shell=True,
+    #                                    capture_output=True, text=True)
+
+    # try:
+    #     cpu_usage = float(monitoring_result.stdout.replace(",", "."))
+    # except ValueError:
+    #     return False
+    # logging.debug(cpu_usage)
+    #
+    # if cpu_usage < threshold:
+    #     logging.error(f"There is a problem with process {pid}!")
+    #     return False
 
     return True
 
@@ -190,8 +214,9 @@ def get_video_stream(stream_url: str, device_number: int) -> int:
     Returns:
         int: pid of the created ffmpeg process
     """
-    command = f"ffmpeg -loglevel error -rtsp_transport tcp -i {stream_url} -f"\
-              f" v4l2 -vcodec rawvideo -pix_fmt yuv420p"\
+    command = f"ffmpeg -loglevel error -rtsp_transport tcp" \
+              f" -i {stream_url} -f" \
+              f" v4l2 -vcodec rawvideo -pix_fmt yuv420p" \
               f" /dev/video{device_number}"
     if RUNNING:
         ffmpeg_proc = subprocess.Popen(shlex.split(command),
@@ -201,11 +226,14 @@ def get_video_stream(stream_url: str, device_number: int) -> int:
 
     result = None
     while RUNNING:
-        result = subprocess.run("v4l2-ctl --device=10 --all | "
-                                "grep 'Size Image' head -1 |awk '{print $4}'",
-                                capture_output=True, shell=True)
-        logging.debug(f"Current size image: {result.stdout}")
-        if result.stdout != b"0\n":
+        result = subprocess.run("v4l2-ctl --device=10 --all",
+                                capture_output=True, text=True, shell=True)
+        image_size = re.search(
+            r"Size Image\s*:\s*(\S)",
+            result.stdout
+        ).group(1)
+        logging.debug(f"Current size image: {image_size}")
+        if image_size != "0":
             break
         time.sleep(1)
 
@@ -230,7 +258,7 @@ def get_audio_stream(stream_url: str) -> int:
     Returns:
         int: pid of the created ffplay process
     """
-    command = f"ffplay -loglevel error -rtsp_transport"\
+    command = f"ffplay -loglevel error -rtsp_transport" \
               f" tcp -nodisp {stream_url}"
     if RUNNING:
         ffplay_proc = subprocess.Popen(shlex.split(command), shell=False)
@@ -241,25 +269,30 @@ def get_audio_stream(stream_url: str) -> int:
     return ffplay_proc.pid
 
 
-def create_virtual_mic(microphone_name: str) -> None:
+def create_virtual_mic(
+        microphone_name: str,
+        microphone_sink_name: str
+) -> None:
     """
     Create virtual microphone for audio playback
 
     Args:
         microphone_name (str): name the virtual microphone should get
+        microphone_sink_name (str): name the microphone sink should get
     """
     subprocess.run("pactl unload-module module-remap-source", shell=True)
     subprocess.run("pactl unload-module module-null-sink", shell=True)
 
-    null_sink_cmd = "pactl load-module module-null-sink sink_name=virtmic"\
-                    " sink_properties=device.description="\
-                    "Virtual_Microphone_Sink"
+    null_sink_cmd = "pactl load-module module-null-sink sink_name=virtmic" \
+                    " sink_properties=device.description=" \
+                    f"{microphone_sink_name}"
     module_null_sink_output = subprocess.run(null_sink_cmd, shell=True,
                                              capture_output=True, text=True)
 
-    remap_source_cmd = f"pactl load-module module-remap-source master=virtmic"\
-                       f".monitor source_name=virtmic source_properties="\
-                       f"device.description={microphone_name}"
+    remap_source_cmd = f"pactl load-module module-remap-source " \
+                       f"master=virtmic.monitor source_name=virtmic " \
+                       f"source_properties=device.description=" \
+                       f"{microphone_name}"
     module_remap_source_output = subprocess.run(remap_source_cmd, shell=True,
                                                 capture_output=True, text=True)
 
@@ -281,6 +314,24 @@ def wait_for(element: tuple, timeout: int = 10) -> None:
                                          .element_to_be_clickable(element))
 
 
+def check_exists_xpath(xpath) -> bool:
+    """
+    Checks whether given xpath element exists
+    Args:
+        xpath (str): xpath of the element to be checked
+
+    Returns:
+        bool: True, if element exists. False otherwise
+    """
+    try:
+        wait_for((By.XPATH, xpath))
+        driver.find_element(by=By.XPATH, value=xpath)
+    except WebDriverException:
+        return False
+
+    return True
+
+
 def click_button_xpath(button_xpath: str) -> None:
     """
     Clicks button given by the xpath of the button.
@@ -289,7 +340,7 @@ def click_button_xpath(button_xpath: str) -> None:
         button_xpath (str): xpath of the button to be clicked
     """
     try:
-        # wait for button to be clickable and the cllick it
+        # wait for button to be clickable and the click it
         wait_for((By.XPATH, button_xpath))
         element = driver.find_element(by=By.XPATH, value=button_xpath)
         driver.execute_script("arguments[0].click();", element)
@@ -300,18 +351,20 @@ def click_button_xpath(button_xpath: str) -> None:
         exit(-1)
 
 
-def fill_input_xpath(input_xpath: str, input: str) -> None:
+def fill_input_xpath(input_xpath: str, input_text: str) -> None:
     """
-    Fills the input field given by its xpath with input.
+    Clears and fills the input field given by its xpath with input.
 
     Args:
         input_xpath (str): xpath of the input field
-        input (str): text to be input into the field
+        input_text (str): text to be input into the field
     """
     try:
         # wait for input field to be available and the fill it with the input
         wait_for((By.XPATH, input_xpath))
-        driver.find_element(by=By.XPATH, value=input_xpath).send_keys(input)
+        element = driver.find_element(by=By.XPATH, value=input_xpath)
+        element.clear()
+        element.send_keys(input_text)
     except NoSuchElementException:
         logging.critical(f"Input with XPath: {input_xpath} not found! "
                          "Aborting.")
@@ -368,7 +421,7 @@ def check_microphone_muted() -> bool:
     try:
         umute_button_xpath = '//*[@aria-label="Unmute"]'
         driver.find_element(by=By.XPATH, value=umute_button_xpath)
-        # Unmute button exists, therefore currrently muted
+        # Unmute button exists, therefore currently muted
         return True
     except NoSuchElementException:
         # Unmute button does not exist, therefore not muted
@@ -441,11 +494,12 @@ def get_last_chat_message() -> str:
 
 def close_chat() -> None:
     """
-    Close current private chat
+    Close current private chat when chat is open
     """
     close_chat_xpath = '//*[@data-test="closePrivateChat"]'
-    click_button_xpath(close_chat_xpath)
-    time.sleep(0.5)
+    if check_exists_xpath(close_chat_xpath):
+        click_button_xpath(close_chat_xpath)
+        time.sleep(0.5)
 
 
 def check_chats() -> None:
@@ -492,6 +546,7 @@ def send_chat_help() -> None:
     send_chat_message("/unshare_cam: Disable video stream.")
     send_chat_message("/share_cam: Enable video stream (If video stream \
                       is provided).")
+    send_chat_message("/restart: Restart the livestream.")
     time.sleep(1)
 
 
@@ -502,20 +557,26 @@ def execute_command(command: str) -> None:
     Args:
         command (str): Command to execute
     """
-    global MANUAL_MUTE
+    global MANUAL_MUTE, MANUAL_VIDEO_UNSHARE
     if command == "/mute":
         MANUAL_MUTE = True
         mute_microphone()
     elif command == "/unmute":
-        MANUAL_MUTE = True
+        MANUAL_MUTE = False
         unmute_microphone()
     elif command == "/togglemic":
-        MANUAL_MUTE = True
+        MANUAL_MUTE = not MANUAL_MUTE
         toggle_microphone()
     elif command == "/unshare_cam":
+        MANUAL_VIDEO_UNSHARE = True
         unshare_camera()
     elif command == "/share_cam":
+        MANUAL_VIDEO_UNSHARE = False
         share_camera()
+    elif command == "/restart":
+        MANUAL_VIDEO_UNSHARE = False
+        MANUAL_MUTE = False
+        initialize_livestream()
     elif command == "/help":
         send_chat_help()
     else:
@@ -581,11 +642,17 @@ def share_camera() -> None:
     time.sleep(1)
 
 
-def integrate_camera(
-        room_url: str, name: str, infrastructure: str,
-        video_stream: str, audio_stream: str, access_code: str) -> NoReturn:
+def initialize_livestream(
+        room_url: str,
+        name: str,
+        infrastructure: str,
+        video_stream: str,
+        audio_stream: str,
+        access_code: str
+) -> None:
     """
-    Integrate video and/or audio into a meeting
+    Initializes the livestream by setting up selenium, joining the
+    meeting room and enabling the webcam and the audio
 
     Args:
         room_url (str): url of the meeting
@@ -594,25 +661,12 @@ def integrate_camera(
         video_stream (str): url of the video stream (can be None)
         audio_stream (str): url of the audio stream (can be None)
         access_code (str): access code for access as moderator (can be None)
-
-    Returns:
-        NoReturn: Does not return, but stays in the function
     """
+    global driver
 
-    logging.debug(f"video stream: {video_stream}")
-    logging.debug(f"audio stream: {audio_stream}")
-    # create and initialize audio resources
-    if audio_stream:
-        create_virtual_mic(MIC_NAME)
-
-    # initialize video resources, i.e., the virtual device and ffmpeg process
-    if video_stream:
-        create_loopback_device(10, CAMERA_NAME)
-    ffmpeg_thread = threading.Thread(target=manage_ffmpeg,
-                                     args=(video_stream, audio_stream, 10))
-    ffmpeg_thread.start()
-
-    time.sleep(5)
+    # quit driver if already running
+    if driver:
+        driver.quit()
 
     # get chrome options and add argument for granting camera permission
     # and window maximization
@@ -621,7 +675,6 @@ def integrate_camera(
     options.add_argument("--start-maximized")
     options.add_argument("--headless")
 
-    global driver
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
                               options=options)
 
@@ -707,43 +760,242 @@ def integrate_camera(
         # choose virtual microphone by its given name
         micname_xpath = f"//*[contains(text(),'{MIC_NAME}')]"
         click_button_xpath(micname_xpath)
+        time.sleep(1)
+
+        # expand list for changing audio devices
+        click_button_xpath(change_audio_device_xpath)
+        time.sleep(1)
+
+        # choose virtual microphone sink as speaker by its given name
+        mic_sink_name_xpath = f"//*[contains(text(),'{MIC_SINK_NAME}')]"
+        click_button_xpath(mic_sink_name_xpath)
+
+
+def integrate_camera(
+        room_url: str,
+        name: str,
+        infrastructure: str,
+        video_stream: str,
+        audio_stream: str,
+        access_code: str
+) -> NoReturn:
+    """
+    Integrate video and/or audio into a meeting
+
+    Args:
+        room_url (str): url of the meeting
+        name (str): name to be displayed as participant
+        infrastructure (str): type of infrastructure used for the meeting room
+        video_stream (str): url of the video stream (can be None)
+        audio_stream (str): url of the audio stream (can be None)
+        access_code (str): access code for access as moderator (can be None)
+
+    Returns:
+        NoReturn: Does not return, but stays in the function
+    """
+
+    logging.debug(f"video stream: {video_stream}")
+    logging.debug(f"audio stream: {audio_stream}")
+    # create and initialize audio resources
+    if audio_stream:
+        create_virtual_mic(MIC_NAME, MIC_SINK_NAME)
+
+    # initialize video resources, i.e., the virtual device and ffmpeg process
+    if video_stream:
+        create_loopback_device(10, CAMERA_NAME)
+    ffmpeg_thread = threading.Thread(target=manage_ffmpeg,
+                                     args=(video_stream, audio_stream, 10))
+    ffmpeg_thread.start()
+
+    time.sleep(5)
+
+    # Initialize cam and microphone
+    initialize_livestream(
+        room_url,
+        name,
+        infrastructure,
+        video_stream,
+        audio_stream,
+        access_code,
+    )
 
     while True:
-        check_chats()
-        if audio_stream and not MANUAL_MUTE:
-            unmute_microphone()
-        time.sleep(0.1)
+        # Check if time slot for stream is exceeded
+        if not is_timeslot_active():
+            exit_program()
+
+        try:
+            check_chats()
+            # Check whether mic is still unmuted. Otherwise, unmute mic
+            if audio_stream and not MANUAL_MUTE:
+                unmute_microphone()
+            # Check whether camera is still shared.
+            # Otherwise, share camera again
+            if video_stream and not MANUAL_VIDEO_UNSHARE:
+                share_camera()
+        except WebDriverException:
+            logging.exception("Restarting livestream due to an exception!")
+            # Reinitialize when selenium throws an error
+            initialize_livestream(
+                room_url,
+                name,
+                infrastructure,
+                video_stream,
+                audio_stream,
+                access_code,
+            )
+
+        time.sleep(1)
+
+
+def get_schedule_yaml(test_schedule=None) -> dict:
+    """
+    Get the config yaml for the stream system
+
+    Args:
+        test_schedule (str): Schedule for testing purposes.
+            Replaces schedule_url option in service config.
+
+    Returns:
+        dict: configuration yaml for the stream system
+    """
+    if test_schedule:
+        logging.info("Loading schedules from test configuration.")
+        with open(test_schedule, "r") as f:
+            test_schedule = yaml.safe_load(f)
+        return test_schedule
+
+    r = requests.get(
+        CONFIGURATION["schedule_url"],
+        auth=(CONFIGURATION["schedule_basic_auth_user"],
+              CONFIGURATION["schedule_basic_auth_password"])
+    )
+
+    if r.status_code == 200:
+        logging.info("Successfully retrieved config yaml!")
+        return yaml.safe_load(r.text)
+    else:
+        logging.warning("Could not get config yaml!")
+        return {}
+
+
+def get_schedule(schedule_yaml=None) -> dict:
+    """
+    Extract schedule from the schedule yaml
+
+    Args:
+        schedule_yaml (dict): schedule configurations.
+
+    Returns:
+        dict: Schedule entry for the current machine
+    """
+    instance_key = CONFIGURATION["schedule_instance_key"]
+
+    return schedule_yaml["clients"][instance_key]["schedule"]
+
+
+def get_active_schedule_slot(schedule: dict):
+    """
+    Get active schedule slot if present
+    Args:
+        schedule: Schedule with stream time slots
+
+    Returns:
+        dict: Schedule entry that should be active,
+            or None if no entry should be active
+    """
+    for entry in schedule:
+        start_ts = parse(entry["start"]).timestamp()
+        stop_ts = parse(entry["stop"]).timestamp()
+        now_ts = time.time()
+        if start_ts < now_ts < stop_ts:
+            return entry
+
+    return None
+
+
+def is_timeslot_active():
+    """
+    Check if current schedule entry should be active
+    Returns:
+        True, if current entry is between start and stop timestamps
+    """
+    start_ts = parse(current_schedule_slot["start"]).timestamp()
+    stop_ts = parse(current_schedule_slot["stop"]).timestamp()
+    now_ts = time.time()
+    return start_ts < now_ts < stop_ts
+
+
+def get_infrastructure(room_url: str, schedule_yaml: dict) -> str:
+    """
+    Returns type of infrastructure that is used for the room
+
+    Args:
+        room_url (str): url of a meeting room
+        schedule_yaml (dict): configuration yaml with schedule configurations
+            for the stream system
+
+    Returns:
+        str: Can currently be "greenlight" or "studip"
+    """
+    infrastructures = schedule_yaml["infrastructure"]
+    for prefix, infrastructure in infrastructures.items():
+        if prefix in room_url:
+            return infrastructure
+
+    # if no infrastructure matches, abort
+    logging.critical("No infrastructure matches the provided string!")
+    exit_program()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, filename="cam_integration.log",
-                        filemode="a",
-                        format="%(asctime)s - %(levelname)s - %(message)s")
-
     signal.signal(signal.SIGINT, signal_handler)
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("room_url", help="URL of the meeting room")
-    parser.add_argument("id", help="Name to be displayed in the meeting")
-    parser.add_argument("infrastructure",
-                        help="Infrastructure used for the meeting room")
-    parser.add_argument("--audio", help="URL of the audio stream")
-    parser.add_argument("--video", help="URL of the video stream")
-    parser.add_argument("--code", help="Access code for joining as moderator")
-    parser.add_argument("--video_quality",
-                        help="Video quality to select for the stream")
+    parser.add_argument("-c", "--config", default="service_configuration.yml",
+                        type=str, help="path to the config file")
+    parser.add_argument("-t", "--test-schedule", dest="schedule", type=str,
+                        help="path to a local file with a test schedule")
+    parser.add_argument("-l", "--log-path", dest="logPath", type=str,
+                        default="cam_integration.log",
+                        help="path where the log file should be created")
+    parser.add_argument("--log-level", dest="logLevel",
+                        type=str, default="INFO",
+                        help="log level (NOTSET, DEBUG, INFO, WARNING,"
+                             " ERROR, CRITICAL). Default: INFO")
 
     args = parser.parse_args()
 
-    room_url = args.room_url
-    name = args.id
-    infrastructure = args.infrastructure
-    audio_stream = args.audio
-    video_stream = args.video
-    access_code = args.code
+    logging.basicConfig(level=args.logLevel.upper(), filename=args.logPath,
+                        filemode="a",
+                        format="%(asctime)s - %(levelname)s - %(message)s")
+
+    # get service configuration
+    with open(args.config, 'r') as file:
+        CONFIGURATION = yaml.safe_load(file)
+
+    test_schedule = None
+    if args.schedule:
+        test_schedule = args.schedule
+
+    schedule_yaml = get_schedule_yaml(test_schedule)
+    schedule = get_schedule(schedule_yaml)
+    current_schedule_slot = get_active_schedule_slot(schedule)
+
+    # Quit programm if no active stream slot is available
+    if not current_schedule_slot:
+        logging.critical("No active stream slot available")
+        exit_program()
+
+    room_url = current_schedule_slot["location"]
+    name = current_schedule_slot["id"]
+    infrastructure = get_infrastructure(room_url, schedule_yaml)
+    audio_stream = current_schedule_slot["audio"]
+    video_stream = current_schedule_slot["video"]
+    access_code = current_schedule_slot.get("access_code")
     global VIDEO_QUALITY
-    VIDEO_QUALITY = args.video_quality
+    VIDEO_QUALITY = current_schedule_slot.get("video_quality")
 
     integrate_camera(room_url, name, infrastructure,
                      video_stream, audio_stream, access_code)
